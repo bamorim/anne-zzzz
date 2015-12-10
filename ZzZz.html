@@ -11286,6 +11286,7 @@ Elm.ZzZz.make = function (_elm) {
    if (_elm.ZzZz.values) return _elm.ZzZz.values;
    var _U = Elm.Native.Utils.make(_elm),
    $Basics = Elm.Basics.make(_elm),
+   $Color = Elm.Color.make(_elm),
    $Debug = Elm.Debug.make(_elm),
    $Html = Elm.Html.make(_elm),
    $Keyboard = Elm.Keyboard.make(_elm),
@@ -11300,6 +11301,15 @@ Elm.ZzZz.make = function (_elm) {
    $Time = Elm.Time.make(_elm),
    $Window = Elm.Window.make(_elm);
    var _op = {};
+   var combineColor = F3(function (r,c1,c2) {
+      var c2$ = $Color.toHsl(c2);
+      var c1$ = $Color.toHsl(c1);
+      var comb = F3(function (r,a,b) {    return r * a + (1 - r) * b;});
+      var h = A3(comb,r,c1$.hue,c2$.hue);
+      var s = A3(comb,r,c1$.saturation,c2$.saturation);
+      var l = A3(comb,r,c1$.lightness,c2$.lightness);
+      return A3($Color.hsl,h,s,l);
+   });
    var renderScore = function (score) {
       return A2($Svg.text$,
       _U.list([$Svg$Attributes.x("395"),$Svg$Attributes.y("20"),$Svg$Attributes.textAnchor("end")]),
@@ -11316,7 +11326,9 @@ Elm.ZzZz.make = function (_elm) {
               ,$Svg$Attributes.fill("transparent")]),
       _U.list([]));
    };
-   var Game = F5(function (a,b,c,d,e) {    return {player: a,melatonines: b,score: c,scene: d,melatonineSeed: e};});
+   var Game = F8(function (a,b,c,d,e,f,g,h) {
+      return {player: a,melatonins: b,score: c,scene: d,melatoninSeed: e,dropMelatoninAt: f,startedAt: g,clock: h};
+   });
    var Player = F3(function (a,b,c) {    return {sex: a,x: b,y: c};});
    var PlayScreen = {ctor: "PlayScreen"};
    var SelectionScreen = {ctor: "SelectionScreen"};
@@ -11324,22 +11336,29 @@ Elm.ZzZz.make = function (_elm) {
    var defaultFemale = {sex: Female,x: 165,y: 0};
    var Male = {ctor: "Male"};
    var defaultMale = {sex: Male,x: 165,y: 0};
-   var defaultGame = {player: defaultMale,melatonines: _U.list([]),score: 0,scene: SelectionScreen,melatonineSeed: $Random.initialSeed(1234)};
+   var defaultGame = {player: defaultMale
+                     ,melatonins: _U.list([])
+                     ,score: 0
+                     ,scene: SelectionScreen
+                     ,melatoninSeed: $Random.initialSeed(1234)
+                     ,dropMelatoninAt: 0
+                     ,startedAt: 0
+                     ,clock: 0};
    var isCollidingWith = F2(function (player,_p0) {
       var _p1 = _p0;
       var _p2 = _p1._0;
       return _U.cmp(_p1._1,240) < 0 ? false : _U.cmp($Basics.toFloat(_p2) + 5,player.x) > 0 && _U.cmp($Basics.toFloat(_p2),player.x + 40) < 0 ? true : false;
    });
-   var captureMelatonines = function (game) {
+   var captureMelatonins = function (game) {
       var isColliding = isCollidingWith(game.player);
       var isNotColliding = function (_p3) {    return $Basics.not(isColliding(_p3));};
-      var newMelatonines = A2($List.filter,isNotColliding,game.melatonines);
-      var scored = A2(F2(function (x,y) {    return x * y;}),10,$List.length(A2($List.filter,isColliding,game.melatonines)));
+      var newMelatonins = A2($List.filter,isNotColliding,game.melatonins);
+      var scored = A2(F2(function (x,y) {    return x * y;}),10,$List.length(A2($List.filter,isColliding,game.melatonins)));
       var newScore = game.score + scored;
-      return _U.update(game,{melatonines: newMelatonines,score: newScore});
+      return _U.update(game,{melatonins: newMelatonins,score: newScore});
    };
-   var updateOnSelect = F2(function (input,game) {
-      if (input.space) return _U.update(game,{scene: PlayScreen}); else {
+   var updateOnSelect = F3(function (time,input,game) {
+      if (input.space) return _U.update(game,{scene: PlayScreen,startedAt: time}); else {
             var _p4 = input.x;
             switch (_p4)
             {case 1: return _U.update(game,{player: defaultMale});
@@ -11347,32 +11366,43 @@ Elm.ZzZz.make = function (_elm) {
                default: return game;}
          }
    });
+   var updateClock = F2(function (t,game) {    return _U.update(game,{clock: t});});
    var Input = F2(function (a,b) {    return {x: a,space: b};});
+   var input = $Time.timestamp(A2($Signal.sampleOn,
+   $Time.fps(60),
+   A3($Signal.map2,Input,A2($Signal.map,function (_) {    return _.x;},$Keyboard.arrows),$Keyboard.space)));
    var delta = A2($Signal.map,$Time.inSeconds,$Time.fps(60));
-   var input = A2($Signal.sampleOn,delta,A3($Signal.map2,Input,A2($Signal.map,function (_) {    return _.x;},$Keyboard.arrows),$Keyboard.space));
-   var melatonineRadius = 10;
+   var gameDuration = 120000.0;
+   var finishIfEnded = function (game) {    return _U.cmp(game.clock - game.startedAt,gameDuration) > 0 ? _U.update(game,{scene: SelectionScreen}) : game;};
+   var melatoninDelay = 1500;
+   var melatoninRadius = 10;
    var renderMelatonine = function (_p5) {
       var _p6 = _p5;
-      return A2($Svg.circle,
-      _U.list([$Svg$Attributes.cx($Basics.toString(_p6._0))
-              ,$Svg$Attributes.cy($Basics.toString(_p6._1))
-              ,$Svg$Attributes.r($Basics.toString(melatonineRadius))
-              ,$Svg$Attributes.fill("red")]),
-      _U.list([]));
+      var _p8 = _p6._1;
+      var _p7 = _p6._0;
+      return A2($Svg.g,
+      _U.list([]),
+      _U.list([A2($Svg.circle,
+              _U.list([$Svg$Attributes.cx($Basics.toString(_p7))
+                      ,$Svg$Attributes.cy($Basics.toString(_p8))
+                      ,$Svg$Attributes.r($Basics.toString(melatoninRadius))
+                      ,$Svg$Attributes.fill("#8533C4")]),
+              _U.list([]))
+              ,A2($Svg.text$,_U.list([$Svg$Attributes.x($Basics.toString(_p7 - 5)),$Svg$Attributes.y($Basics.toString(_p8 + 5))]),_U.list([$Svg.text("Z")]))]));
    };
    var gameHeight = 300;
-   var updateMelatonines = function (game) {
-      var updateMelatonine = function (_p7) {    var _p8 = _p7;return {ctor: "_Tuple2",_0: _p8._0,_1: _p8._1 + 3};};
-      var melatonines = A2($List.filter,
-      function (_p9) {
-         var _p10 = _p9;
-         return _U.cmp(_p10._1,gameHeight) < 0;
+   var updateMelatonins = function (game) {
+      var updateMelatonine = function (_p9) {    var _p10 = _p9;return {ctor: "_Tuple2",_0: _p10._0,_1: _p10._1 + 3};};
+      var melatonins = A2($List.filter,
+      function (_p11) {
+         var _p12 = _p11;
+         return _U.cmp(_p12._1,gameHeight) < 0;
       },
-      A2($List.map,updateMelatonine,game.melatonines));
-      return _U.update(game,{melatonines: melatonines});
+      A2($List.map,updateMelatonine,game.melatonins));
+      return _U.update(game,{melatonins: melatonins});
    };
    var renderPlayer = function (player) {
-      var sprite = function () {    var _p11 = player.sex;if (_p11.ctor === "Male") {    return "homem.png";} else {    return "mulher.png";}}();
+      var sprite = function () {    var _p13 = player.sex;if (_p13.ctor === "Male") {    return "homem.png";} else {    return "mulher.png";}}();
       return A2($Svg.image,
       _U.list([$Svg$Attributes.xlinkHref(sprite)
               ,$Svg$Attributes.width("35")
@@ -11382,16 +11412,14 @@ Elm.ZzZz.make = function (_elm) {
       _U.list([]));
    };
    var gameWidth = 400;
-   var melatonineGenerator = A2($Random.$int,melatonineRadius,gameWidth - melatonineRadius);
-   var addMelatoninesIfApplicable = function (game) {
-      var _p12 = $List.length(game.melatonines);
-      if (_p12 === 0) {
-            var _p13 = A2($Random.generate,melatonineGenerator,game.melatonineSeed);
-            return _U.update(game,{melatonineSeed: _p13._1,melatonines: _U.list([{ctor: "_Tuple2",_0: _p13._0,_1: 0}])});
-         } else {
-            return game;
-         }
-   };
+   var melatoninGenerator = A2($Random.$int,melatoninRadius,gameWidth - melatoninRadius);
+   var dropMelatonins = F2(function (t,game) {
+      if (_U.cmp(t - game.dropMelatoninAt,0) > -1) {
+            var _p14 = A2($Random.generate,melatoninGenerator,game.melatoninSeed);
+            return _U.update(game,
+            {melatoninSeed: _p14._1,melatonins: A2($List._op["::"],{ctor: "_Tuple2",_0: _p14._0,_1: 0},game.melatonins),dropMelatoninAt: t + melatoninDelay});
+         } else return game;
+   });
    var movePlayer = F2(function (dx,player) {
       var newX = player.x + dx;
       return _U.cmp(newX,gameWidth - 35) > 0 ? _U.update(player,{x: gameWidth - 35}) : _U.cmp(newX,0) < 0 ? _U.update(player,{x: 0}) : _U.update(player,
@@ -11402,12 +11430,15 @@ Elm.ZzZz.make = function (_elm) {
       var player = A2(movePlayer,$Basics.toFloat(dx) * speed,game.player);
       return _U.update(game,{player: player});
    });
-   var updateGame = F2(function (input,game) {
-      var _p14 = game.scene;
-      if (_p14.ctor === "PlayScreen") {
-            return captureMelatonines(addMelatoninesIfApplicable(updateMelatonines(A2(updatePlayer,input.x,game))));
+   var updateGame = F2(function (_p15,game) {
+      var _p16 = _p15;
+      var _p19 = _p16._0;
+      var _p18 = _p16._1;
+      var _p17 = game.scene;
+      if (_p17.ctor === "PlayScreen") {
+            return finishIfEnded(A2(updateClock,_p19,captureMelatonins(A2(dropMelatonins,_p19,updateMelatonins(A2(updatePlayer,_p18.x,game))))));
          } else {
-            return A2(updateOnSelect,input,game);
+            return A3(updateOnSelect,_p19,_p18,game);
          }
    });
    var game = A3($Signal.foldp,updateGame,defaultGame,input);
@@ -11418,30 +11449,40 @@ Elm.ZzZz.make = function (_elm) {
                                            ,$Svg$Attributes.width($Basics.toString(gameWidth))])
                                   ,attrs]));
    };
-   var renderBackground = A2($Svg.image,bgAttrs(_U.list([$Svg$Attributes.xlinkHref("./fundo.jpg")])),_U.list([]));
-   var renderSelection = function (game) {
-      var selectedX = function () {    var _p15 = game.player.sex;if (_p15.ctor === "Female") {    return 90;} else {    return 250;}}();
-      var male = {sex: Male,x: 260,y: 120};
-      var female = {sex: Female,x: 100,y: 120};
-      return _U.list([renderBackground,renderPlayer(male),renderPlayer(female),renderSelectionRect(selectedX)]);
+   var renderPlayBG = function (time) {
+      var nightColor = A3($Color.hsl,$Basics.degrees(233),0.95,0.1);
+      var dayColor = A3($Color.hsl,$Basics.degrees(176),0.75,0.5);
+      var timeRatio = time / gameDuration;
+      var color = A3(combineColor,timeRatio,nightColor,dayColor);
+      var c = $Color.toRgb(color);
+      var colorStr = $String.concat(_U.list(["rgb(",$Basics.toString(c.red),",",$Basics.toString(c.green),",",$Basics.toString(c.blue),")"]));
+      var night = 1000;
+      return A2($Svg.rect,bgAttrs(_U.list([$Svg$Attributes.fill(colorStr)])),_U.list([]));
    };
    var renderPlay = function (game) {
-      return $List.concat(_U.list([_U.list([renderBackground,renderPlayer(game.player),renderScore(game.score)])
-                                  ,A2($List.map,renderMelatonine,game.melatonines)]));
+      return $List.concat(_U.list([_U.list([renderPlayBG(game.clock - game.startedAt),renderPlayer(game.player),renderScore(game.score)])
+                                  ,A2($List.map,renderMelatonine,game.melatonins)]));
    };
-   var view = F2(function (_p16,game) {
-      var _p17 = _p16;
+   var renderSelectionBG = A2($Svg.image,bgAttrs(_U.list([$Svg$Attributes.xlinkHref("./fundo.jpg")])),_U.list([]));
+   var renderSelection = function (game) {
+      var selectedX = function () {    var _p20 = game.player.sex;if (_p20.ctor === "Female") {    return 90;} else {    return 250;}}();
+      var male = {sex: Male,x: 260,y: 120};
+      var female = {sex: Female,x: 100,y: 120};
+      return _U.list([renderSelectionBG,renderPlayer(male),renderPlayer(female),renderSelectionRect(selectedX)]);
+   };
+   var view = F2(function (_p21,game) {
+      var _p22 = _p21;
       return A2($Svg.svg,
       _U.list([$Svg$Attributes.version("1.1")
               ,$Svg$Attributes.x("0")
               ,$Svg$Attributes.y("0")
               ,$Svg$Attributes.viewBox(A2($String.join," ",_U.list(["0","0",$Basics.toString(gameWidth),$Basics.toString(gameHeight)])))
               ,$Svg$Attributes.preserveAspectRatio("xMidYMin meet")
-              ,$Svg$Attributes.width($Basics.toString(_p17._0))
-              ,$Svg$Attributes.height($Basics.toString(_p17._1))]),
+              ,$Svg$Attributes.width($Basics.toString(_p22._0))
+              ,$Svg$Attributes.height($Basics.toString(_p22._1))]),
       function () {
-         var _p18 = game.scene;
-         if (_p18.ctor === "PlayScreen") {
+         var _p23 = game.scene;
+         if (_p23.ctor === "PlayScreen") {
                return renderPlay(game);
             } else {
                return renderSelection(game);
@@ -11452,21 +11493,25 @@ Elm.ZzZz.make = function (_elm) {
    return _elm.ZzZz.values = {_op: _op
                              ,gameWidth: gameWidth
                              ,gameHeight: gameHeight
-                             ,melatonineRadius: melatonineRadius
-                             ,melatonineGenerator: melatonineGenerator
+                             ,melatoninRadius: melatoninRadius
+                             ,melatoninGenerator: melatoninGenerator
+                             ,melatoninDelay: melatoninDelay
+                             ,gameDuration: gameDuration
                              ,main: main
                              ,game: game
                              ,delta: delta
                              ,Input: Input
                              ,input: input
                              ,updateGame: updateGame
+                             ,finishIfEnded: finishIfEnded
+                             ,updateClock: updateClock
                              ,updateOnSelect: updateOnSelect
                              ,movePlayer: movePlayer
-                             ,addMelatoninesIfApplicable: addMelatoninesIfApplicable
+                             ,dropMelatonins: dropMelatonins
                              ,updatePlayer: updatePlayer
-                             ,updateMelatonines: updateMelatonines
+                             ,updateMelatonins: updateMelatonins
                              ,isCollidingWith: isCollidingWith
-                             ,captureMelatonines: captureMelatonines
+                             ,captureMelatonins: captureMelatonins
                              ,Male: Male
                              ,Female: Female
                              ,SelectionScreen: SelectionScreen
@@ -11482,7 +11527,9 @@ Elm.ZzZz.make = function (_elm) {
                              ,renderPlay: renderPlay
                              ,renderScore: renderScore
                              ,bgAttrs: bgAttrs
+                             ,combineColor: combineColor
+                             ,renderPlayBG: renderPlayBG
+                             ,renderSelectionBG: renderSelectionBG
                              ,renderMelatonine: renderMelatonine
-                             ,renderBackground: renderBackground
                              ,renderPlayer: renderPlayer};
 };</script></head><body><script type="text/javascript">Elm.fullscreen(Elm.ZzZz)</script></body></html>
