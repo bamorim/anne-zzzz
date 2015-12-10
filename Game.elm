@@ -20,16 +20,13 @@ melatoninRadius = 10
 melatoninGenerator = Random.int melatoninRadius (gameWidth-melatoninRadius)
 melatoninDelay = 1500
 gameDuration = 120000.0
+scoreTarget = 10
 
 main = 
   Signal.map2 view Window.dimensions game
 
 game : Signal Game
 game = Signal.foldp updateGame defaultGame input
-
-delta : Signal Time
-delta =
-      Signal.map inSeconds (fps 60)
 
 type alias Input =
   { x: Int
@@ -60,13 +57,13 @@ updateGame (t,input) game = case game.scene of
 
 finishIfEnded : Game -> Game
 finishIfEnded game = 
-  if (game.clock - game.startedAt) > gameDuration then
+  if game.timeProgress >= 1 then
     { game | scene = SelectionScreen }
   else
     game
 
 updateClock : Time -> Game -> Game
-updateClock t game = { game | clock = t }
+updateClock t game = { game | timeProgress = (t-game.startedAt)/gameDuration }
 
 updateOnSelect : Time -> Input -> Game -> Game
 updateOnSelect time input game =
@@ -95,13 +92,13 @@ dropMelatonins t game =
   if (t-game.dropMelatoninAt) >= 0 then
     case Random.generate melatoninGenerator game.melatoninSeed of
       (nextX,nextSeed) ->
-        { game | melatoninSeed = nextSeed, melatonins = (nextX,0) :: game.melatonins, dropMelatoninAt = t+melatoninDelay }
+        { game | melatoninSeed = nextSeed, melatonins = (nextX,0) :: game.melatonins, dropMelatoninAt = t+melatoninDelay*(1-game.timeProgress) }
   else game
 
 updatePlayer : Int -> Game -> Game
 updatePlayer dx game =
   let
-      speed = 2.5
+      speed = 1+3*(1.0-(toFloat game.score)/(toFloat scoreTarget))
       player = movePlayer ((toFloat dx)*speed) game.player
   in
       { game | player = player }
@@ -118,7 +115,7 @@ updateMelatonins game =
 
 isCollidingWith : Player -> (Int,Int) -> Bool
 isCollidingWith player (x,y) =
-  if y < 240 then
+  if y < 225 then
     False
   else if ( toFloat x + 5 > player.x ) && ( toFloat x < player.x+40 ) then
     True
@@ -133,7 +130,6 @@ captureMelatonins game =
       scored = game.melatonins
         |> List.filter isColliding
         |> List.length
-        |> (*) 10
       newMelatonins = game.melatonins
         |> List.filter isNotColliding
 
@@ -157,15 +153,11 @@ defaultFemale : Player
 defaultFemale =
   { sex = Female
   , x = 165
-  , y = 0
+  , y = 10
   }
 
 defaultMale : Player
-defaultMale =
-  { sex = Male
-  , x = 165
-  , y = 0
-  }
+defaultMale = { defaultFemale | sex = Male }
 
   
 
@@ -177,7 +169,7 @@ type alias Game =
   , melatoninSeed: Random.Seed
   , dropMelatoninAt: Time
   , startedAt: Time
-  , clock: Time
+  , timeProgress: Float
   }
 
 defaultGame : Game
@@ -189,7 +181,7 @@ defaultGame =
   , melatoninSeed = Random.initialSeed 1234
   , dropMelatoninAt = 0
   , startedAt = 0
-  , clock = 0
+  , timeProgress = 0
   }
   
 
@@ -215,6 +207,30 @@ view (w,h) game = svg
     PlayScreen -> renderPlay game
     SelectionScreen -> renderSelection game
   )
+
+-- View utils
+
+bgAttrs : List Attribute -> List Attribute
+bgAttrs attrs = (List.concat [
+    [ SVGA.x "0"
+    , SVGA.y "0"
+    , SVGA.height (gameHeight |> toString)
+    , SVGA.width (gameWidth |> toString)
+    ],
+    attrs
+  ])
+
+colorToString : Color -> String
+colorToString color = 
+  let c = toRgb color
+  in String.concat [ "rgb("
+    , (toString c.red)
+    , ","
+    , (toString c.green)
+    , ","
+    , toString c.blue
+    , ")"
+    ]
       
 -- Selection Scene
 renderSelection : Game -> List Svg
@@ -247,30 +263,48 @@ renderSelectionRect x = rect
 -- Play Scene
 renderPlay : Game -> List Svg
 renderPlay game = List.concat
-  [ [ renderPlayBG (game.clock - game.startedAt)
+  [ [ renderPlayBG game.timeProgress
+    , renderFloor
     , renderPlayer game.player
-    , renderScore game.score
     ]
   , List.map renderMelatonine game.melatonins
+  , [ renderScore game.score
+    , renderTime game.timeProgress
+    ]
   ]
+
+renderFloor : Svg
+renderFloor = rect
+  [ SVGA.x "0"
+  , SVGA.y "280"
+  , SVGA.height "20"
+  , SVGA.width "400"
+  , SVGA.fill "green"
+  ] []
 
 renderScore : Int -> Svg
-renderScore score = text'
-  [ SVGA.x "395"
-  , SVGA.y "20"
-  , SVGA.textAnchor "end"
-  ]
-  [ text (toString score) ]
+renderScore score = renderBar 10 Color.purple ((toFloat score)/scoreTarget)
 
-bgAttrs : List Attribute -> List Attribute
-bgAttrs attrs = (List.concat [
-    [ SVGA.x "0"
-    , SVGA.y "0"
-    , SVGA.height (gameHeight |> toString)
-    , SVGA.width (gameWidth |> toString)
-    ],
-    attrs
-  ])
+renderTime : Float -> Svg
+renderTime progress = renderBar 25 Color.blue progress
+
+renderBar : Int -> Color -> Float -> Svg
+renderBar y c p = g []
+  [ rect
+    [ SVGA.x "10"
+    , SVGA.y (toString y)
+    , SVGA.height "10"
+    , SVGA.width "380"
+    , SVGA.fill "black"
+    ][]
+  , rect
+    [ SVGA.x "10"
+    , SVGA.y (toString y)
+    , SVGA.height "10"
+    , SVGA.width (toString (380*p))
+    , SVGA.fill (colorToString c)
+    ][]
+  ]
 
 combineColor : Float -> Color -> Color -> Color
 combineColor r c1 c2 = let
@@ -283,27 +317,16 @@ combineColor r c1 c2 = let
   in
     hsl h s l
 
-renderPlayBG : Time -> Svg
-renderPlayBG time = 
+renderPlayBG : Float -> Svg
+renderPlayBG progress = 
   let
-      night = 1000
-      timeRatio = time/gameDuration
       dayColor = hsl (degrees 176) 0.75 0.5
       nightColor = hsl (degrees 233) 0.95 0.1
-      color = combineColor timeRatio nightColor dayColor 
-      c = toRgb color
-      colorStr = String.concat [ "rgb("
-      , (toString c.red)
-      , ","
-      , (toString c.green)
-      , ","
-      , toString c.blue
-      , ")"
-      ]
+      color = combineColor progress nightColor dayColor 
   in
     --text' [SVGA.y "100"] [ text colorStr ]
     rect (bgAttrs
-      [ SVGA.fill colorStr
+      [ SVGA.fill (colorToString color)
       ]) []
 
 renderSelectionBG : Svg
