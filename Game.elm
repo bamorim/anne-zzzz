@@ -17,8 +17,9 @@ import Color exposing (toRgb, toHsl, hsl, Color)
 gameWidth = 400
 gameHeight = 300
 melatoninRadius = 10
-melatoninGenerator = Random.int melatoninRadius (gameWidth-melatoninRadius)
+objectDropGenerator = Random.int melatoninRadius (gameWidth-melatoninRadius)
 melatoninDelay = 1.5*second
+lightSourceDelay = 2*second
 gameDuration = 2*minute
 scoreTarget = 10
 
@@ -63,6 +64,7 @@ updatePlay t input game = game
   |> updatePlayer input.x
   |> updateMelatonins
   |> dropMelatonins t
+  |> dropLightSources t
   |> captureMelatonins
   |> updateClock t
   |> finishIfEnded
@@ -104,9 +106,18 @@ movePlayer dx player =
 dropMelatonins : Time -> Game -> Game
 dropMelatonins t game =
   if (t-game.dropMelatoninAt) >= 0 then
-    case Random.generate melatoninGenerator game.melatoninSeed of
+    case Random.generate objectDropGenerator game.melatoninSeed of
       (nextX,nextSeed) ->
-        { game | melatoninSeed = nextSeed, melatonins = (nextX,0) :: game.melatonins, dropMelatoninAt = t+melatoninDelay*(1-game.timeProgress) }
+        { game | melatoninSeed = nextSeed, melatonins = (Melatonin (nextX,0)) :: game.melatonins, dropMelatoninAt = t+melatoninDelay*(1-game.timeProgress) }
+  else game
+
+
+dropLightSources : Time -> Game -> Game
+dropLightSources t game =
+  if (t-game.dropLightSourceAt) >= 0 then
+    case Random.generate objectDropGenerator game.lightSourceSeed of
+      (nextX,nextSeed) ->
+        { game | lightSourceSeed = nextSeed, melatonins = (LightSource (nextX,0)) :: game.melatonins, dropLightSourceAt = t+lightSourceDelay*(1-game.timeProgress) }
   else game
 
 updatePlayer : Int -> Game -> Game
@@ -120,14 +131,19 @@ updatePlayer dx game =
 updateMelatonins : Game -> Game
 updateMelatonins game =
   let
-      updateMelatonine (x,y) = (x,y+3)
+      updateMelatonine object = case object of
+        Melatonin (x,y) -> Melatonin (x,y+3)
+        LightSource (x,y) -> LightSource (x,y+3)
+
+      passed (x,y) = y < gameHeight
+
       melatonins = game.melatonins
         |> List.map updateMelatonine
-        |> List.filter (\(x,y) -> y < gameHeight)
+        |> List.filter (objectPosition >> passed)
   in
       { game | melatonins = melatonins }
 
-isCollidingWith : Player -> (Int,Int) -> Bool
+isCollidingWith : Player -> Point -> Bool
 isCollidingWith player (x,y) =
   if y < 225 then
     False
@@ -139,15 +155,22 @@ isCollidingWith player (x,y) =
 captureMelatonins : Game -> Game
 captureMelatonins game =
   let
-      isColliding = isCollidingWith game.player
+      isColliding = objectPosition >> (isCollidingWith game.player)
       isNotColliding = not << isColliding
+      scoreForObject object = case object of
+        LightSource _ -> -5
+        Melatonin   _ -> 1
+
       scored = game.melatonins
         |> List.filter isColliding
-        |> List.length
+        |> List.map scoreForObject
+        |> List.sum
+
       newMelatonins = game.melatonins
         |> List.filter isNotColliding
 
-      newScore = game.score+scored
+      newScore' = game.score+scored
+      newScore = if newScore' < 0 then 0 else newScore'
   in
       { game | melatonins = newMelatonins, score = newScore }
 
@@ -155,7 +178,13 @@ captureMelatonins game =
 type alias Point = (Int,Int)
 
 type Sex = Male | Female
+type Object = Melatonin Point | LightSource Point
 type Scene = SelectionScreen | PlayScreen | SuccessScreen | FailureScreen | InformationScreen
+
+objectPosition : Object -> Point
+objectPosition object = case object of
+  Melatonin p -> p
+  LightSource p -> p
 
 type alias Player =
   { sex: Sex
@@ -173,15 +202,15 @@ defaultFemale =
 defaultMale : Player
 defaultMale = { defaultFemale | sex = Male }
 
-  
-
 type alias Game = 
   { player: Player
-  , melatonins: List Point
+  , melatonins: List Object
   , score: Int
   , scene: Scene
   , melatoninSeed: Random.Seed
   , dropMelatoninAt: Time
+  , lightSourceSeed: Random.Seed
+  , dropLightSourceAt: Time
   , startedAt: Time
   , timeProgress: Float
   , space: Bool
@@ -195,6 +224,8 @@ defaultGame =
   , scene = SelectionScreen
   , melatoninSeed = Random.initialSeed 1234
   , dropMelatoninAt = 0
+  , lightSourceSeed = Random.initialSeed 5678
+  , dropLightSourceAt = 0 -- gameDuration/2
   , startedAt = 0
   , timeProgress = 0
   , space = False
@@ -323,7 +354,7 @@ renderPlay game = List.concat
     , renderFloor
     , renderPlayer game.player
     ]
-  , List.map renderMelatonine game.melatonins
+  , List.map renderObject game.melatonins
   , [ renderScore game.score
     , renderTime game.timeProgress
     ]
@@ -390,19 +421,25 @@ renderSelectionBG = image (bgAttrs
   [ SVGA.xlinkHref "./fundo.jpg"
   ]) []
 
-renderMelatonine : Point -> Svg
-renderMelatonine (x,y) = g []
-  [ circle
-    [ SVGA.cx (toString x)
-    , SVGA.cy (toString y)
-    , SVGA.r  (toString melatoninRadius)
-    , SVGA.fill "#8533C4"
-    ] [] 
-  , text'
-    [ SVGA.x (toString (x-5))
-    , SVGA.y (toString (y+5))
-    ] [ text "Z" ]
-  ]
+renderObject : Object -> Svg
+renderObject object = 
+  let
+      renderCircle x y c str = g []
+        [ circle
+          [ SVGA.cx (toString x)
+          , SVGA.cy (toString y)
+          , SVGA.r  (toString melatoninRadius)
+          , SVGA.fill c
+          ] [] 
+        , text'
+          [ SVGA.x (toString (x-5))
+          , SVGA.y (toString (y+5))
+          ] [ text str ]
+        ]
+  in
+      case object of
+        Melatonin (x,y) -> renderCircle x y "#8533C4" "Z"
+        LightSource (x,y) -> renderCircle x y "red" "L"
 
 renderPlayer : Player -> Svg
 renderPlayer player = 
