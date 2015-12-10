@@ -21,7 +21,7 @@ objectDropGenerator = Random.int melatoninRadius (gameWidth-melatoninRadius)
 melatoninDelay = 1.5*second
 lightSourceDelay = 2*second
 gameDuration = 2*minute
-scoreTarget = 10
+scoreTarget = 100
 
 main = 
   Signal.map2 view Window.dimensions game
@@ -96,10 +96,10 @@ movePlayer : Float -> Player -> Player
 movePlayer dx player =
   let newX = player.x+dx
   in
-      if newX > gameWidth-35 then
-        { player | x = gameWidth-35 }
+      if newX > gameWidth then
+        { player | x = newX-gameWidth }
       else if newX < 0 then
-        { player | x = 0 }
+        { player | x = newX+gameWidth }
       else 
         { player | x = newX }
 
@@ -145,12 +145,15 @@ updateMelatonins game =
 
 isCollidingWith : Player -> Point -> Bool
 isCollidingWith player (x,y) =
-  if y < 225 then
-    False
-  else if ( toFloat x + 5 > player.x ) && ( toFloat x < player.x+40 ) then
-    True
-  else
-    False
+  let
+      checkX px ox = (toFloat ox + 5 > px) && ( toFloat ox < px+40 )
+  in
+      if y < 225 then
+        False
+      else if (checkX player.x x) || (checkX (player.x - gameWidth) x) then
+        True
+      else
+        False
 
 captureMelatonins : Game -> Game
 captureMelatonins game =
@@ -331,8 +334,8 @@ renderSelection game =
 
   in
     [ renderSelectionBG
-    , renderPlayer male
-    , renderPlayer female
+    , renderCharacter male
+    , renderCharacter female
     , renderSelectionRect selectedX
     ]
 
@@ -352,12 +355,20 @@ renderPlay : Game -> List Svg
 renderPlay game = List.concat
   [ [ renderPlayBG game.timeProgress
     , renderFloor
-    , renderPlayer game.player
     ]
+  , renderPlayer game.player
   , List.map renderObject game.melatonins
   , [ renderScore game.score
     , renderTime game.timeProgress
+    , rect [SVGA.x "-1000", SVGA.y "-1000", SVGA.width "1000", SVGA.height "3000", SVGA.fill "white"] []
+    , rect [SVGA.x (toString gameWidth), SVGA.y "-1000", SVGA.width "1000", SVGA.height "3000", SVGA.fill "white"] []
     ]
+  ]
+
+renderPlayer : Player -> List Svg
+renderPlayer player =
+  [ renderCharacter { player | x = player.x-gameWidth }
+  , renderCharacter player
   ]
 
 renderFloor : Svg
@@ -441,8 +452,8 @@ renderObject object =
         Melatonin (x,y) -> renderCircle x y "#8533C4" "Z"
         LightSource (x,y) -> renderCircle x y "red" "L"
 
-renderPlayer : Player -> Svg
-renderPlayer player = 
+renderCharacter : Player -> Svg
+renderCharacter player = 
   let 
     sprite = case player.sex of
       Male -> "homem.png"
