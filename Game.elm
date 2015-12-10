@@ -45,36 +45,44 @@ input =
 -- UPDATE
 
 updateGame : (Time,Input) -> Game -> Game
-updateGame (t,input) game = case game.scene of
-  PlayScreen -> game
-    |> updatePlayer input.x
-    |> updateMelatonins
-    |> dropMelatonins t
-    |> captureMelatonins
-    |> updateClock t
-    |> finishIfEnded
-  SelectionScreen -> updateOnSelect t input game
-  _ -> waitingForSpace input.space game
+updateGame (t,input) game =
+  let
+      spacePressed = ( (not game.space) && input.space )
+      nextGame = case game.scene of
+        PlayScreen -> updatePlay t input game
+        SelectionScreen -> updateSelection t input game
+        InformationScreen -> if spacePressed then { game | scene = PlayScreen, startedAt = t } else game
+        _ -> if spacePressed then defaultGame else game
+  in { nextGame | space = input.space }
 
-waitingForSpace : Bool -> Game -> Game
-waitingForSpace space game = if space then defaultGame else game
+goToSelection : Game -> Game
+goToSelection game = defaultGame
+
+updatePlay : Time -> Input -> Game -> Game
+updatePlay t input game = game
+  |> updatePlayer input.x
+  |> updateMelatonins
+  |> dropMelatonins t
+  |> captureMelatonins
+  |> updateClock t
+  |> finishIfEnded
 
 finishIfEnded : Game -> Game
 finishIfEnded game = 
   if game.score >= scoreTarget then
-    { game | scene = SuccessScreen }
+    { game | scene = SuccessScreen, space = False }
   else if game.timeProgress >= 1 then
-    { game | scene = FailureScreen }
+    { game | scene = FailureScreen, space = False }
   else
     game
 
 updateClock : Time -> Game -> Game
 updateClock t game = { game | timeProgress = (t-game.startedAt)/gameDuration }
 
-updateOnSelect : Time -> Input -> Game -> Game
-updateOnSelect time input game =
-  if input.space then
-    { game | scene = PlayScreen, startedAt = time }
+updateSelection : Time -> Input -> Game -> Game
+updateSelection time input game =
+  if (not game.space) && input.space then
+    { game | scene = InformationScreen }
   else
     (case input.x of
       1 -> { game | player = defaultMale }
@@ -147,7 +155,7 @@ captureMelatonins game =
 type alias Point = (Int,Int)
 
 type Sex = Male | Female
-type Scene = SelectionScreen | PlayScreen | SuccessScreen | FailureScreen
+type Scene = SelectionScreen | PlayScreen | SuccessScreen | FailureScreen | InformationScreen
 
 type alias Player =
   { sex: Sex
@@ -176,6 +184,7 @@ type alias Game =
   , dropMelatoninAt: Time
   , startedAt: Time
   , timeProgress: Float
+  , space: Bool
   }
 
 defaultGame : Game
@@ -188,6 +197,7 @@ defaultGame =
   , dropMelatoninAt = 0
   , startedAt = 0
   , timeProgress = 0
+  , space = False
   }
   
 
@@ -214,6 +224,7 @@ view (w,h) game = svg
     SelectionScreen -> renderSelection game
     SuccessScreen -> renderSuccess game
     FailureScreen -> renderFailure game
+    InformationScreen -> renderInformation game
   )
 
 -- View utils
@@ -241,22 +252,40 @@ colorToString color =
     ]
 
 -- Final screens
+
+centeredText : Int -> String -> Svg
+centeredText y str = text'
+  [ SVGA.y (toString y) 
+  , SVGA.x "200"
+  , SVGA.fill "white"
+  , SVGA.textAnchor "middle"
+  , SVGA.stroke "black"
+  , SVGA.strokeWidth "0.3pt"
+  ] [ text str ]
+
 renderSuccess : Game -> List Svg
 renderSuccess game =
   [ renderPlayBG game.timeProgress
-  , ( text'
-      [ SVGA.y "100" ]
-      [ text "Perdeu troxa" ]
-    )
+  , centeredText 150 "Parabéns, Você ganhou!"
   ]
 
 renderFailure : Game -> List Svg
 renderFailure game =
   [ renderPlayBG game.timeProgress
-  , ( text'
-      [ SVGA.y "100" ]
-      [ text "Perdeu troxa" ]
-    )
+  , centeredText 130 "Que Pena."
+  , centeredText 170 "Na próxima evite fontes luminosas a noite..."
+  ]
+
+renderInformation : Game -> List Svg
+renderInformation game =
+  [ renderPlayBG game.timeProgress
+  , ( image
+    [ SVGA.x "50"
+    , SVGA.y "75"
+    , SVGA.width "300"
+    , SVGA.height "150"
+    , SVGA.xlinkHref "tutorial.svg"
+    ] [])
   ]
       
 -- Selection Scene
