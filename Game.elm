@@ -18,8 +18,8 @@ gameWidth = 400
 gameHeight = 300
 melatoninRadius = 10
 melatoninGenerator = Random.int melatoninRadius (gameWidth-melatoninRadius)
-melatoninDelay = 1500
-gameDuration = 120000.0
+melatoninDelay = 1.5*second
+gameDuration = 2*minute
 scoreTarget = 10
 
 main = 
@@ -53,12 +53,18 @@ updateGame (t,input) game = case game.scene of
     |> captureMelatonins
     |> updateClock t
     |> finishIfEnded
-  _ -> updateOnSelect t input game
+  SelectionScreen -> updateOnSelect t input game
+  _ -> waitingForSpace input.space game
+
+waitingForSpace : Bool -> Game -> Game
+waitingForSpace space game = if space then defaultGame else game
 
 finishIfEnded : Game -> Game
 finishIfEnded game = 
-  if game.timeProgress >= 1 then
-    { game | scene = SelectionScreen }
+  if game.score >= scoreTarget then
+    { game | scene = SuccessScreen }
+  else if game.timeProgress >= 1 then
+    { game | scene = FailureScreen }
   else
     game
 
@@ -141,7 +147,7 @@ captureMelatonins game =
 type alias Point = (Int,Int)
 
 type Sex = Male | Female
-type Scene = SelectionScreen | PlayScreen
+type Scene = SelectionScreen | PlayScreen | SuccessScreen | FailureScreen
 
 type alias Player =
   { sex: Sex
@@ -206,6 +212,8 @@ view (w,h) game = svg
   (case game.scene of
     PlayScreen -> renderPlay game
     SelectionScreen -> renderSelection game
+    SuccessScreen -> renderSuccess game
+    FailureScreen -> renderFailure game
   )
 
 -- View utils
@@ -231,6 +239,25 @@ colorToString color =
     , toString c.blue
     , ")"
     ]
+
+-- Final screens
+renderSuccess : Game -> List Svg
+renderSuccess game =
+  [ renderPlayBG game.timeProgress
+  , ( text'
+      [ SVGA.y "100" ]
+      [ text "Perdeu troxa" ]
+    )
+  ]
+
+renderFailure : Game -> List Svg
+renderFailure game =
+  [ renderPlayBG game.timeProgress
+  , ( text'
+      [ SVGA.y "100" ]
+      [ text "Perdeu troxa" ]
+    )
+  ]
       
 -- Selection Scene
 renderSelection : Game -> List Svg
