@@ -11,12 +11,15 @@ import List
 import String
 import Random
 import Keyboard
+import Color exposing (toRgb, toHsl, hsl, Color)
 
 -- CONSTANTS
 gameWidth = 400
 gameHeight = 300
-melatonineRadius = 10
-melatonineGenerator = Random.int melatonineRadius (gameWidth-melatonineRadius)
+melatoninRadius = 10
+melatoninGenerator = Random.int melatoninRadius (gameWidth-melatoninRadius)
+melatoninDelay = 1500
+gameDuration = 120000.0
 
 main = 
   Signal.map2 view Window.dimensions game
@@ -33,27 +36,42 @@ type alias Input =
   , space: Bool
   }
 
-input : Signal Input
-input = Signal.sampleOn delta <|
-      Signal.map2 Input
-        (Signal.map .x Keyboard.arrows)
-        Keyboard.space
+input : Signal (Time, Input)
+input = 
+    Time.timestamp (
+      Signal.sampleOn (fps 60) <|
+        Signal.map2 Input
+          (Signal.map .x Keyboard.arrows)
+          Keyboard.space
+    )
 
 -- UPDATE
 
-updateGame : Input -> Game -> Game
-updateGame input game = case game.scene of
+updateGame : (Time,Input) -> Game -> Game
+updateGame (t,input) game = case game.scene of
   PlayScreen -> game
     |> updatePlayer input.x
-    |> updateMelatonines
-    |> addMelatoninesIfApplicable
-    |> captureMelatonines
-  _ -> updateOnSelect input game
+    |> updateMelatonins
+    |> dropMelatonins t
+    |> captureMelatonins
+    |> updateClock t
+    |> finishIfEnded
+  _ -> updateOnSelect t input game
 
-updateOnSelect : Input -> Game -> Game
-updateOnSelect input game =
+finishIfEnded : Game -> Game
+finishIfEnded game = 
+  if (game.clock - game.startedAt) > gameDuration then
+    { game | scene = SelectionScreen }
+  else
+    game
+
+updateClock : Time -> Game -> Game
+updateClock t game = { game | clock = t }
+
+updateOnSelect : Time -> Input -> Game -> Game
+updateOnSelect time input game =
   if input.space then
-    { game | scene = PlayScreen }
+    { game | scene = PlayScreen, startedAt = time }
   else
     (case input.x of
       1 -> { game | player = defaultMale }
@@ -72,12 +90,13 @@ movePlayer dx player =
       else 
         { player | x = newX }
 
-addMelatoninesIfApplicable : Game -> Game
-addMelatoninesIfApplicable game = case (List.length game.melatonines) of
-        0 -> case Random.generate melatonineGenerator game.melatonineSeed of
-          (nextX,nextSeed) ->
-            { game | melatonineSeed = nextSeed, melatonines = [(nextX,0)] }
-        _ -> game
+dropMelatonins : Time -> Game -> Game
+dropMelatonins t game =
+  if (t-game.dropMelatoninAt) >= 0 then
+    case Random.generate melatoninGenerator game.melatoninSeed of
+      (nextX,nextSeed) ->
+        { game | melatoninSeed = nextSeed, melatonins = (nextX,0) :: game.melatonins, dropMelatoninAt = t+melatoninDelay }
+  else game
 
 updatePlayer : Int -> Game -> Game
 updatePlayer dx game =
@@ -87,15 +106,15 @@ updatePlayer dx game =
   in
       { game | player = player }
 
-updateMelatonines : Game -> Game
-updateMelatonines game =
+updateMelatonins : Game -> Game
+updateMelatonins game =
   let
       updateMelatonine (x,y) = (x,y+3)
-      melatonines = game.melatonines
+      melatonins = game.melatonins
         |> List.map updateMelatonine
         |> List.filter (\(x,y) -> y < gameHeight)
   in
-      { game | melatonines = melatonines }
+      { game | melatonins = melatonins }
 
 isCollidingWith : Player -> (Int,Int) -> Bool
 isCollidingWith player (x,y) =
@@ -106,21 +125,21 @@ isCollidingWith player (x,y) =
   else
     False
 
-captureMelatonines : Game -> Game
-captureMelatonines game =
+captureMelatonins : Game -> Game
+captureMelatonins game =
   let
       isColliding = isCollidingWith game.player
       isNotColliding = not << isColliding
-      scored = game.melatonines
+      scored = game.melatonins
         |> List.filter isColliding
         |> List.length
         |> (*) 10
-      newMelatonines = game.melatonines
+      newMelatonins = game.melatonins
         |> List.filter isNotColliding
 
       newScore = game.score+scored
   in
-      { game | melatonines = newMelatonines, score = newScore }
+      { game | melatonins = newMelatonins, score = newScore }
 
 -- MODEL
 type alias Point = (Int,Int)
@@ -152,19 +171,25 @@ defaultMale =
 
 type alias Game = 
   { player: Player
-  , melatonines: List Point
+  , melatonins: List Point
   , score: Int
   , scene: Scene
-  , melatonineSeed: Random.Seed
+  , melatoninSeed: Random.Seed
+  , dropMelatoninAt: Time
+  , startedAt: Time
+  , clock: Time
   }
 
 defaultGame : Game
 defaultGame =
   { player = defaultMale
-  , melatonines = []
+  , melatonins = []
   , score = 0
   , scene = SelectionScreen
-  , melatonineSeed = Random.initialSeed 1234
+  , melatoninSeed = Random.initialSeed 1234
+  , dropMelatoninAt = 0
+  , startedAt = 0
+  , clock = 0
   }
   
 
@@ -202,7 +227,7 @@ renderSelection game =
         Male   -> 250 
 
   in
-    [ renderBackground
+    [ renderSelectionBG
     , renderPlayer male
     , renderPlayer female
     , renderSelectionRect selectedX
@@ -222,11 +247,11 @@ renderSelectionRect x = rect
 -- Play Scene
 renderPlay : Game -> List Svg
 renderPlay game = List.concat
-  [ [ renderBackground
+  [ [ renderPlayBG (game.clock - game.startedAt)
     , renderPlayer game.player
     , renderScore game.score
     ]
-  , List.map renderMelatonine game.melatonines
+  , List.map renderMelatonine game.melatonins
   ]
 
 renderScore : Int -> Svg
@@ -247,18 +272,58 @@ bgAttrs attrs = (List.concat [
     attrs
   ])
 
-renderMelatonine : Point -> Svg
-renderMelatonine (x,y) = circle
-  [ SVGA.cx (toString x)
-  , SVGA.cy (toString y)
-  , SVGA.r  (toString melatonineRadius)
-  , SVGA.fill "red"
-  ] []
+combineColor : Float -> Color -> Color -> Color
+combineColor r c1 c2 = let
+    comb r a b = (r*a)+((1-r)*b)
+    c1' = toHsl c1
+    c2' = toHsl c2
+    h = comb r c1'.hue c2'.hue
+    s = comb r c1'.saturation c2'.saturation
+    l = comb r c1'.lightness c2'.lightness
+  in
+    hsl h s l
 
-renderBackground : Svg
-renderBackground = image (bgAttrs
+renderPlayBG : Time -> Svg
+renderPlayBG time = 
+  let
+      night = 1000
+      timeRatio = time/gameDuration
+      dayColor = hsl (degrees 176) 0.75 0.5
+      nightColor = hsl (degrees 233) 0.95 0.1
+      color = combineColor timeRatio nightColor dayColor 
+      c = toRgb color
+      colorStr = String.concat [ "rgb("
+      , (toString c.red)
+      , ","
+      , (toString c.green)
+      , ","
+      , toString c.blue
+      , ")"
+      ]
+  in
+    --text' [SVGA.y "100"] [ text colorStr ]
+    rect (bgAttrs
+      [ SVGA.fill colorStr
+      ]) []
+
+renderSelectionBG : Svg
+renderSelectionBG = image (bgAttrs
   [ SVGA.xlinkHref "./fundo.jpg"
   ]) []
+
+renderMelatonine : Point -> Svg
+renderMelatonine (x,y) = g []
+  [ circle
+    [ SVGA.cx (toString x)
+    , SVGA.cy (toString y)
+    , SVGA.r  (toString melatoninRadius)
+    , SVGA.fill "#8533C4"
+    ] [] 
+  , text'
+    [ SVGA.x (toString (x-5))
+    , SVGA.y (toString (y+5))
+    ] [ text "Z" ]
+  ]
 
 renderPlayer : Player -> Svg
 renderPlayer player = 
@@ -280,5 +345,3 @@ renderPlayer player =
       )
     ]
     []
-
--- ACTIONS
