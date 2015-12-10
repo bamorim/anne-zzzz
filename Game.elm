@@ -52,7 +52,7 @@ updateGame (t,input) game =
       nextGame = case game.scene of
         PlayScreen -> updatePlay t input game
         SelectionScreen -> updateSelection t input game
-        InformationScreen -> if spacePressed then { game | scene = PlayScreen, startedAt = t } else game
+        InformationScreen -> if spacePressed then { game | scene = PlayScreen, startedAt = t, dropLightSourceAt = t+gameDuration/2 } else game
         _ -> if spacePressed then defaultGame else game
   in { nextGame | space = input.space }
 
@@ -161,7 +161,7 @@ captureMelatonins game =
       isColliding = objectPosition >> (isCollidingWith game.player)
       isNotColliding = not << isColliding
       scoreForObject object = case object of
-        LightSource _ -> -5
+        LightSource _ -> -3
         Melatonin   _ -> 1
 
       scored = game.melatonins
@@ -228,7 +228,7 @@ defaultGame =
   , melatoninSeed = Random.initialSeed 1234
   , dropMelatoninAt = 0
   , lightSourceSeed = Random.initialSeed 5678
-  , dropLightSourceAt = 0 -- gameDuration/2
+  , dropLightSourceAt = 0
   , startedAt = 0
   , timeProgress = 0
   , space = False
