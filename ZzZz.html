@@ -11324,6 +11324,16 @@ Elm.ZzZz.make = function (_elm) {
               ,$Svg$Attributes.fill("transparent")]),
       _U.list([]));
    };
+   var centeredText = F2(function (y,str) {
+      return A2($Svg.text$,
+      _U.list([$Svg$Attributes.y($Basics.toString(y))
+              ,$Svg$Attributes.x("200")
+              ,$Svg$Attributes.fill("white")
+              ,$Svg$Attributes.textAnchor("middle")
+              ,$Svg$Attributes.stroke("black")
+              ,$Svg$Attributes.strokeWidth("0.3pt")]),
+      _U.list([$Svg.text(str)]));
+   });
    var colorToString = function (color) {
       var c = $Color.toRgb(color);
       return $String.concat(_U.list(["rgb(",$Basics.toString(c.red),",",$Basics.toString(c.green),",",$Basics.toString(c.blue),")"]));
@@ -11347,12 +11357,48 @@ Elm.ZzZz.make = function (_elm) {
               _U.list([]))]));
    });
    var renderTime = function (progress) {    return A3(renderBar,25,$Color.blue,progress);};
-   var Game = F8(function (a,b,c,d,e,f,g,h) {
-      return {player: a,melatonins: b,score: c,scene: d,melatoninSeed: e,dropMelatoninAt: f,startedAt: g,timeProgress: h};
-   });
+   var Game = function (a) {
+      return function (b) {
+         return function (c) {
+            return function (d) {
+               return function (e) {
+                  return function (f) {
+                     return function (g) {
+                        return function (h) {
+                           return function (i) {
+                              return function (j) {
+                                 return function (k) {
+                                    return {player: a
+                                           ,melatonins: b
+                                           ,score: c
+                                           ,scene: d
+                                           ,melatoninSeed: e
+                                           ,dropMelatoninAt: f
+                                           ,lightSourceSeed: g
+                                           ,dropLightSourceAt: h
+                                           ,startedAt: i
+                                           ,timeProgress: j
+                                           ,space: k};
+                                 };
+                              };
+                           };
+                        };
+                     };
+                  };
+               };
+            };
+         };
+      };
+   };
    var Player = F3(function (a,b,c) {    return {sex: a,x: b,y: c};});
+   var objectPosition = function (object) {    var _p0 = object;if (_p0.ctor === "Melatonin") {    return _p0._0;} else {    return _p0._0;}};
+   var InformationScreen = {ctor: "InformationScreen"};
+   var FailureScreen = {ctor: "FailureScreen"};
+   var SuccessScreen = {ctor: "SuccessScreen"};
    var PlayScreen = {ctor: "PlayScreen"};
    var SelectionScreen = {ctor: "SelectionScreen"};
+   var LightSource = function (a) {    return {ctor: "LightSource",_0: a};};
+   var Melatonin = function (a) {    return {ctor: "Melatonin",_0: a};};
    var Female = {ctor: "Female"};
    var defaultFemale = {sex: Female,x: 165,y: 10};
    var Male = {ctor: "Male"};
@@ -11363,68 +11409,71 @@ Elm.ZzZz.make = function (_elm) {
                      ,scene: SelectionScreen
                      ,melatoninSeed: $Random.initialSeed(1234)
                      ,dropMelatoninAt: 0
+                     ,lightSourceSeed: $Random.initialSeed(5678)
+                     ,dropLightSourceAt: 0
                      ,startedAt: 0
-                     ,timeProgress: 0};
-   var isCollidingWith = F2(function (player,_p0) {
-      var _p1 = _p0;
-      var _p2 = _p1._0;
-      return _U.cmp(_p1._1,225) < 0 ? false : _U.cmp($Basics.toFloat(_p2) + 5,player.x) > 0 && _U.cmp($Basics.toFloat(_p2),player.x + 40) < 0 ? true : false;
-   });
-   var captureMelatonins = function (game) {
-      var isColliding = isCollidingWith(game.player);
-      var isNotColliding = function (_p3) {    return $Basics.not(isColliding(_p3));};
-      var newMelatonins = A2($List.filter,isNotColliding,game.melatonins);
-      var scored = $List.length(A2($List.filter,isColliding,game.melatonins));
-      var newScore = game.score + scored;
-      return _U.update(game,{melatonins: newMelatonins,score: newScore});
-   };
-   var updateOnSelect = F3(function (time,input,game) {
-      if (input.space) return _U.update(game,{scene: PlayScreen,startedAt: time}); else {
-            var _p4 = input.x;
-            switch (_p4)
+                     ,timeProgress: 0
+                     ,space: false};
+   var updateSelection = F3(function (time,input,game) {
+      if ($Basics.not(game.space) && input.space) return _U.update(game,{scene: InformationScreen}); else {
+            var _p1 = input.x;
+            switch (_p1)
             {case 1: return _U.update(game,{player: defaultMale});
                case -1: return _U.update(game,{player: defaultFemale});
                default: return game;}
          }
    });
-   var finishIfEnded = function (game) {    return _U.cmp(game.timeProgress,1) > -1 ? _U.update(game,{scene: SelectionScreen}) : game;};
+   var goToSelection = function (game) {    return defaultGame;};
    var Input = F2(function (a,b) {    return {x: a,space: b};});
    var input = $Time.timestamp(A2($Signal.sampleOn,
    $Time.fps(60),
    A3($Signal.map2,Input,A2($Signal.map,function (_) {    return _.x;},$Keyboard.arrows),$Keyboard.space)));
-   var scoreTarget = 10;
+   var scoreTarget = 100;
+   var finishIfEnded = function (game) {
+      return _U.cmp(game.score,scoreTarget) > -1 ? _U.update(game,{scene: SuccessScreen,space: false}) : _U.cmp(game.timeProgress,1) > -1 ? _U.update(game,
+      {scene: FailureScreen,space: false}) : game;
+   };
    var renderScore = function (score) {    return A3(renderBar,10,$Color.purple,$Basics.toFloat(score) / scoreTarget);};
-   var gameDuration = 120000.0;
+   var gameDuration = 2 * $Time.minute;
    var updateClock = F2(function (t,game) {    return _U.update(game,{timeProgress: (t - game.startedAt) / gameDuration});});
-   var melatoninDelay = 1500;
+   var lightSourceDelay = 2 * $Time.second;
+   var melatoninDelay = 1.5 * $Time.second;
    var melatoninRadius = 10;
-   var renderMelatonine = function (_p5) {
-      var _p6 = _p5;
-      var _p8 = _p6._1;
-      var _p7 = _p6._0;
-      return A2($Svg.g,
-      _U.list([]),
-      _U.list([A2($Svg.circle,
-              _U.list([$Svg$Attributes.cx($Basics.toString(_p7))
-                      ,$Svg$Attributes.cy($Basics.toString(_p8))
-                      ,$Svg$Attributes.r($Basics.toString(melatoninRadius))
-                      ,$Svg$Attributes.fill("#8533C4")]),
-              _U.list([]))
-              ,A2($Svg.text$,_U.list([$Svg$Attributes.x($Basics.toString(_p7 - 5)),$Svg$Attributes.y($Basics.toString(_p8 + 5))]),_U.list([$Svg.text("Z")]))]));
+   var renderObject = function (object) {
+      var renderCircle = F4(function (x,y,c,str) {
+         return A2($Svg.g,
+         _U.list([]),
+         _U.list([A2($Svg.circle,
+                 _U.list([$Svg$Attributes.cx($Basics.toString(x))
+                         ,$Svg$Attributes.cy($Basics.toString(y))
+                         ,$Svg$Attributes.r($Basics.toString(melatoninRadius))
+                         ,$Svg$Attributes.fill(c)]),
+                 _U.list([]))
+                 ,A2($Svg.text$,_U.list([$Svg$Attributes.x($Basics.toString(x - 5)),$Svg$Attributes.y($Basics.toString(y + 5))]),_U.list([$Svg.text(str)]))]));
+      });
+      var _p2 = object;
+      if (_p2.ctor === "Melatonin") {
+            return A4(renderCircle,_p2._0._0,_p2._0._1,"#8533C4","Z");
+         } else {
+            return A4(renderCircle,_p2._0._0,_p2._0._1,"red","L");
+         }
    };
    var gameHeight = 300;
    var updateMelatonins = function (game) {
-      var updateMelatonine = function (_p9) {    var _p10 = _p9;return {ctor: "_Tuple2",_0: _p10._0,_1: _p10._1 + 3};};
-      var melatonins = A2($List.filter,
-      function (_p11) {
-         var _p12 = _p11;
-         return _U.cmp(_p12._1,gameHeight) < 0;
-      },
-      A2($List.map,updateMelatonine,game.melatonins));
+      var passed = function (_p3) {    var _p4 = _p3;return _U.cmp(_p4._1,gameHeight) < 0;};
+      var updateMelatonine = function (object) {
+         var _p5 = object;
+         if (_p5.ctor === "Melatonin") {
+               return Melatonin({ctor: "_Tuple2",_0: _p5._0._0,_1: _p5._0._1 + 3});
+            } else {
+               return LightSource({ctor: "_Tuple2",_0: _p5._0._0,_1: _p5._0._1 + 3});
+            }
+      };
+      var melatonins = A2($List.filter,function (_p6) {    return passed(objectPosition(_p6));},A2($List.map,updateMelatonine,game.melatonins));
       return _U.update(game,{melatonins: melatonins});
    };
-   var renderPlayer = function (player) {
-      var sprite = function () {    var _p13 = player.sex;if (_p13.ctor === "Male") {    return "homem.png";} else {    return "mulher.png";}}();
+   var renderCharacter = function (player) {
+      var sprite = function () {    var _p7 = player.sex;if (_p7.ctor === "Male") {    return "homem.png";} else {    return "mulher.png";}}();
       return A2($Svg.image,
       _U.list([$Svg$Attributes.xlinkHref(sprite)
               ,$Svg$Attributes.width("35")
@@ -11434,36 +11483,68 @@ Elm.ZzZz.make = function (_elm) {
       _U.list([]));
    };
    var gameWidth = 400;
-   var melatoninGenerator = A2($Random.$int,melatoninRadius,gameWidth - melatoninRadius);
+   var objectDropGenerator = A2($Random.$int,melatoninRadius,gameWidth - melatoninRadius);
    var dropMelatonins = F2(function (t,game) {
       if (_U.cmp(t - game.dropMelatoninAt,0) > -1) {
-            var _p14 = A2($Random.generate,melatoninGenerator,game.melatoninSeed);
+            var _p8 = A2($Random.generate,objectDropGenerator,game.melatoninSeed);
             return _U.update(game,
-            {melatoninSeed: _p14._1
-            ,melatonins: A2($List._op["::"],{ctor: "_Tuple2",_0: _p14._0,_1: 0},game.melatonins)
+            {melatoninSeed: _p8._1
+            ,melatonins: A2($List._op["::"],Melatonin({ctor: "_Tuple2",_0: _p8._0,_1: 0}),game.melatonins)
             ,dropMelatoninAt: t + melatoninDelay * (1 - game.timeProgress)});
+         } else return game;
+   });
+   var dropLightSources = F2(function (t,game) {
+      if (_U.cmp(t - game.dropLightSourceAt,0) > -1) {
+            var _p9 = A2($Random.generate,objectDropGenerator,game.lightSourceSeed);
+            return _U.update(game,
+            {lightSourceSeed: _p9._1
+            ,melatonins: A2($List._op["::"],LightSource({ctor: "_Tuple2",_0: _p9._0,_1: 0}),game.melatonins)
+            ,dropLightSourceAt: t + lightSourceDelay * (1 - game.timeProgress)});
          } else return game;
    });
    var movePlayer = F2(function (dx,player) {
       var newX = player.x + dx;
-      return _U.cmp(newX,gameWidth - 35) > 0 ? _U.update(player,{x: gameWidth - 35}) : _U.cmp(newX,0) < 0 ? _U.update(player,{x: 0}) : _U.update(player,
-      {x: newX});
+      return _U.cmp(newX,gameWidth) > 0 ? _U.update(player,{x: newX - gameWidth}) : _U.cmp(newX,0) < 0 ? _U.update(player,
+      {x: newX + gameWidth}) : _U.update(player,{x: newX});
    });
    var updatePlayer = F2(function (dx,game) {
       var speed = 1 + 3 * (1.0 - $Basics.toFloat(game.score) / $Basics.toFloat(scoreTarget));
       var player = A2(movePlayer,$Basics.toFloat(dx) * speed,game.player);
       return _U.update(game,{player: player});
    });
-   var updateGame = F2(function (_p15,game) {
-      var _p16 = _p15;
-      var _p19 = _p16._0;
-      var _p18 = _p16._1;
-      var _p17 = game.scene;
-      if (_p17.ctor === "PlayScreen") {
-            return finishIfEnded(A2(updateClock,_p19,captureMelatonins(A2(dropMelatonins,_p19,updateMelatonins(A2(updatePlayer,_p18.x,game))))));
-         } else {
-            return A3(updateOnSelect,_p19,_p18,game);
-         }
+   var isCollidingWith = F2(function (player,_p10) {
+      var _p11 = _p10;
+      var _p12 = _p11._0;
+      var checkX = F2(function (px,ox) {    return _U.cmp($Basics.toFloat(ox) + 5,px) > 0 && _U.cmp($Basics.toFloat(ox),px + 40) < 0;});
+      return _U.cmp(_p11._1,225) < 0 ? false : A2(checkX,player.x,_p12) || A2(checkX,player.x - gameWidth,_p12) ? true : false;
+   });
+   var captureMelatonins = function (game) {
+      var scoreForObject = function (object) {    var _p13 = object;if (_p13.ctor === "LightSource") {    return -5;} else {    return 1;}};
+      var isColliding = function (_p14) {    return A2(isCollidingWith,game.player,objectPosition(_p14));};
+      var isNotColliding = function (_p15) {    return $Basics.not(isColliding(_p15));};
+      var newMelatonins = A2($List.filter,isNotColliding,game.melatonins);
+      var scored = $List.sum(A2($List.map,scoreForObject,A2($List.filter,isColliding,game.melatonins)));
+      var newScore$ = game.score + scored;
+      var newScore = _U.cmp(newScore$,0) < 0 ? 0 : newScore$;
+      return _U.update(game,{melatonins: newMelatonins,score: newScore});
+   };
+   var updatePlay = F3(function (t,input,game) {
+      return finishIfEnded(A2(updateClock,t,captureMelatonins(A2(dropLightSources,t,A2(dropMelatonins,t,updateMelatonins(A2(updatePlayer,input.x,game)))))));
+   });
+   var updateGame = F2(function (_p16,game) {
+      var _p17 = _p16;
+      var _p20 = _p17._0;
+      var _p19 = _p17._1;
+      var spacePressed = $Basics.not(game.space) && _p19.space;
+      var nextGame = function () {
+         var _p18 = game.scene;
+         switch (_p18.ctor)
+         {case "PlayScreen": return A3(updatePlay,_p20,_p19,game);
+            case "SelectionScreen": return A3(updateSelection,_p20,_p19,game);
+            case "InformationScreen": return spacePressed ? _U.update(game,{scene: PlayScreen,startedAt: _p20}) : game;
+            default: return spacePressed ? defaultGame : game;}
+      }();
+      return _U.update(nextGame,{space: _p19.space});
    });
    var game = A3($Signal.foldp,updateGame,defaultGame,input);
    var bgAttrs = function (attrs) {
@@ -11479,35 +11560,67 @@ Elm.ZzZz.make = function (_elm) {
       var color = A3(combineColor,progress,nightColor,dayColor);
       return A2($Svg.rect,bgAttrs(_U.list([$Svg$Attributes.fill(colorToString(color))])),_U.list([]));
    };
-   var renderPlay = function (game) {
-      return $List.concat(_U.list([_U.list([renderPlayBG(game.timeProgress),renderFloor,renderPlayer(game.player)])
-                                  ,A2($List.map,renderMelatonine,game.melatonins)
-                                  ,_U.list([renderScore(game.score),renderTime(game.timeProgress)])]));
+   var renderSuccess = function (game) {    return _U.list([renderPlayBG(game.timeProgress),A2(centeredText,150,"Parabéns, Você ganhou!")]);};
+   var renderFailure = function (game) {
+      return _U.list([renderPlayBG(game.timeProgress),A2(centeredText,130,"Que Pena."),A2(centeredText,170,"Na próxima evite fontes luminosas a noite...")]);
+   };
+   var renderInformation = function (game) {
+      return _U.list([renderPlayBG(game.timeProgress)
+                     ,A2($Svg.image,
+                     _U.list([$Svg$Attributes.x("50")
+                             ,$Svg$Attributes.y("75")
+                             ,$Svg$Attributes.width("300")
+                             ,$Svg$Attributes.height("150")
+                             ,$Svg$Attributes.xlinkHref("tutorial.svg")]),
+                     _U.list([]))]);
    };
    var renderSelectionBG = A2($Svg.image,bgAttrs(_U.list([$Svg$Attributes.xlinkHref("./fundo.jpg")])),_U.list([]));
    var renderSelection = function (game) {
-      var selectedX = function () {    var _p20 = game.player.sex;if (_p20.ctor === "Female") {    return 90;} else {    return 250;}}();
+      var selectedX = function () {    var _p21 = game.player.sex;if (_p21.ctor === "Female") {    return 90;} else {    return 250;}}();
       var male = {sex: Male,x: 260,y: 120};
       var female = {sex: Female,x: 100,y: 120};
-      return _U.list([renderSelectionBG,renderPlayer(male),renderPlayer(female),renderSelectionRect(selectedX)]);
+      return _U.list([renderSelectionBG,renderCharacter(male),renderCharacter(female),renderSelectionRect(selectedX)]);
    };
-   var view = F2(function (_p21,game) {
-      var _p22 = _p21;
+   var renderPlayer = function (player) {    return _U.list([renderCharacter(_U.update(player,{x: player.x - gameWidth})),renderCharacter(player)]);};
+   var renderPlay = function (game) {
+      return $List.concat(_U.list([_U.list([renderPlayBG(game.timeProgress),renderFloor])
+                                  ,renderPlayer(game.player)
+                                  ,A2($List.map,renderObject,game.melatonins)
+                                  ,_U.list([renderScore(game.score)
+                                           ,renderTime(game.timeProgress)
+                                           ,A2($Svg.rect,
+                                           _U.list([$Svg$Attributes.x("-1000")
+                                                   ,$Svg$Attributes.y("-1000")
+                                                   ,$Svg$Attributes.width("1000")
+                                                   ,$Svg$Attributes.height("3000")
+                                                   ,$Svg$Attributes.fill("white")]),
+                                           _U.list([]))
+                                           ,A2($Svg.rect,
+                                           _U.list([$Svg$Attributes.x($Basics.toString(gameWidth))
+                                                   ,$Svg$Attributes.y("-1000")
+                                                   ,$Svg$Attributes.width("1000")
+                                                   ,$Svg$Attributes.height("3000")
+                                                   ,$Svg$Attributes.fill("white")]),
+                                           _U.list([]))])]));
+   };
+   var view = F2(function (_p22,game) {
+      var _p23 = _p22;
       return A2($Svg.svg,
       _U.list([$Svg$Attributes.version("1.1")
               ,$Svg$Attributes.x("0")
               ,$Svg$Attributes.y("0")
               ,$Svg$Attributes.viewBox(A2($String.join," ",_U.list(["0","0",$Basics.toString(gameWidth),$Basics.toString(gameHeight)])))
               ,$Svg$Attributes.preserveAspectRatio("xMidYMin meet")
-              ,$Svg$Attributes.width($Basics.toString(_p22._0))
-              ,$Svg$Attributes.height($Basics.toString(_p22._1))]),
+              ,$Svg$Attributes.width($Basics.toString(_p23._0))
+              ,$Svg$Attributes.height($Basics.toString(_p23._1))]),
       function () {
-         var _p23 = game.scene;
-         if (_p23.ctor === "PlayScreen") {
-               return renderPlay(game);
-            } else {
-               return renderSelection(game);
-            }
+         var _p24 = game.scene;
+         switch (_p24.ctor)
+         {case "PlayScreen": return renderPlay(game);
+            case "SelectionScreen": return renderSelection(game);
+            case "SuccessScreen": return renderSuccess(game);
+            case "FailureScreen": return renderFailure(game);
+            default: return renderInformation(game);}
       }());
    });
    var main = A3($Signal.map2,view,$Window.dimensions,game);
@@ -11515,8 +11628,9 @@ Elm.ZzZz.make = function (_elm) {
                              ,gameWidth: gameWidth
                              ,gameHeight: gameHeight
                              ,melatoninRadius: melatoninRadius
-                             ,melatoninGenerator: melatoninGenerator
+                             ,objectDropGenerator: objectDropGenerator
                              ,melatoninDelay: melatoninDelay
+                             ,lightSourceDelay: lightSourceDelay
                              ,gameDuration: gameDuration
                              ,scoreTarget: scoreTarget
                              ,main: main
@@ -11524,19 +11638,28 @@ Elm.ZzZz.make = function (_elm) {
                              ,Input: Input
                              ,input: input
                              ,updateGame: updateGame
+                             ,goToSelection: goToSelection
+                             ,updatePlay: updatePlay
                              ,finishIfEnded: finishIfEnded
                              ,updateClock: updateClock
-                             ,updateOnSelect: updateOnSelect
+                             ,updateSelection: updateSelection
                              ,movePlayer: movePlayer
                              ,dropMelatonins: dropMelatonins
+                             ,dropLightSources: dropLightSources
                              ,updatePlayer: updatePlayer
                              ,updateMelatonins: updateMelatonins
                              ,isCollidingWith: isCollidingWith
                              ,captureMelatonins: captureMelatonins
                              ,Male: Male
                              ,Female: Female
+                             ,Melatonin: Melatonin
+                             ,LightSource: LightSource
                              ,SelectionScreen: SelectionScreen
                              ,PlayScreen: PlayScreen
+                             ,SuccessScreen: SuccessScreen
+                             ,FailureScreen: FailureScreen
+                             ,InformationScreen: InformationScreen
+                             ,objectPosition: objectPosition
                              ,Player: Player
                              ,defaultFemale: defaultFemale
                              ,defaultMale: defaultMale
@@ -11545,9 +11668,14 @@ Elm.ZzZz.make = function (_elm) {
                              ,view: view
                              ,bgAttrs: bgAttrs
                              ,colorToString: colorToString
+                             ,centeredText: centeredText
+                             ,renderSuccess: renderSuccess
+                             ,renderFailure: renderFailure
+                             ,renderInformation: renderInformation
                              ,renderSelection: renderSelection
                              ,renderSelectionRect: renderSelectionRect
                              ,renderPlay: renderPlay
+                             ,renderPlayer: renderPlayer
                              ,renderFloor: renderFloor
                              ,renderScore: renderScore
                              ,renderTime: renderTime
@@ -11555,6 +11683,6 @@ Elm.ZzZz.make = function (_elm) {
                              ,combineColor: combineColor
                              ,renderPlayBG: renderPlayBG
                              ,renderSelectionBG: renderSelectionBG
-                             ,renderMelatonine: renderMelatonine
-                             ,renderPlayer: renderPlayer};
+                             ,renderObject: renderObject
+                             ,renderCharacter: renderCharacter};
 };</script></head><body><script type="text/javascript">Elm.fullscreen(Elm.ZzZz)</script></body></html>
