@@ -18,10 +18,27 @@ gameWidth = 400
 gameHeight = 300
 melatoninRadius = 10
 objectDropGenerator = Random.int melatoninRadius (gameWidth-melatoninRadius)
-melatoninDelay = 1.5*second
-lightSourceDelay = 2*second
-gameDuration = 2*minute
-scoreTarget = 100
+
+type alias Mode =
+  { startLightSourcesAt: Float
+  , lightSourceDelay: Time
+  , melatoninDelay: Time
+  , gameDuration: Time
+  , melatoninScore: Int
+  , lightSourceScore: Int
+  , scoreTarget: Int
+  }
+
+baseMode : Mode
+baseMode =
+  { melatoninDelay = 1.5*second
+  , lightSourceDelay = 2*second
+  , gameDuration = 2*minute
+  , scoreTarget = 100
+  , melatoninScore = 1
+  , lightSourceScore = -3
+  , startLightSourcesAt = 0.3
+  }
 
 main = 
   Signal.map2 view Window.dimensions game
@@ -52,12 +69,9 @@ updateGame (t,input) game =
       nextGame = case game.scene of
         PlayScreen -> updatePlay t input game
         SelectionScreen -> updateSelection t input game
-        InformationScreen -> if spacePressed then { game | scene = PlayScreen, startedAt = t, dropLightSourceAt = t+gameDuration/2 } else game
-        _ -> if spacePressed then defaultGame else game
+        InformationScreen -> if spacePressed then startGame t game else game
+        _ -> if spacePressed then resetGame game else game
   in { nextGame | space = input.space }
-
-goToSelection : Game -> Game
-goToSelection game = defaultGame
 
 updatePlay : Time -> Input -> Game -> Game
 updatePlay t input game = game
@@ -71,7 +85,7 @@ updatePlay t input game = game
 
 finishIfEnded : Game -> Game
 finishIfEnded game = 
-  if game.score >= scoreTarget then
+  if game.score >= game.mode.scoreTarget then
     { game | scene = SuccessScreen, space = False }
   else if game.timeProgress >= 1 then
     { game | scene = FailureScreen, space = False }
@@ -79,7 +93,7 @@ finishIfEnded game =
     game
 
 updateClock : Time -> Game -> Game
-updateClock t game = { game | timeProgress = (t-game.startedAt)/gameDuration }
+updateClock t game = { game | timeProgress = (t-game.startedAt)/game.mode.gameDuration }
 
 updateSelection : Time -> Input -> Game -> Game
 updateSelection time input game =
@@ -87,8 +101,8 @@ updateSelection time input game =
     { game | scene = InformationScreen }
   else
     (case input.x of
-      1 -> { game | player = defaultMale }
-      (-1) -> { game | player = defaultFemale }
+      1 -> { game | player = newPlayer Male }
+      (-1) -> { game | player = newPlayer Female }
       _ -> game
     )
 
@@ -108,7 +122,11 @@ dropMelatonins t game =
   if (t-game.dropMelatoninAt) >= 0 then
     case Random.generate objectDropGenerator game.melatoninSeed of
       (nextX,nextSeed) ->
-        { game | melatoninSeed = nextSeed, melatonins = (Melatonin (nextX,0)) :: game.melatonins, dropMelatoninAt = t+melatoninDelay*(1-game.timeProgress) }
+        { game
+        | melatoninSeed = nextSeed
+        , melatonins = (Melatonin (nextX,0)) :: game.melatonins
+        , dropMelatoninAt = t+game.mode.melatoninDelay*(1-game.timeProgress)
+        }
   else game
 
 
@@ -117,13 +135,17 @@ dropLightSources t game =
   if (t-game.dropLightSourceAt) >= 0 then
     case Random.generate objectDropGenerator game.lightSourceSeed of
       (nextX,nextSeed) ->
-        { game | lightSourceSeed = nextSeed, melatonins = (LightSource (nextX,0)) :: game.melatonins, dropLightSourceAt = t+lightSourceDelay*(1-game.timeProgress) }
+        { game
+        | lightSourceSeed = nextSeed
+        , melatonins = (LightSource (nextX,0)) :: game.melatonins
+        , dropLightSourceAt = t+game.mode.lightSourceDelay*(1-game.timeProgress)
+        }
   else game
 
 updatePlayer : Int -> Game -> Game
 updatePlayer dx game =
   let
-      speed = 1+3*(1.0-(toFloat game.score)/(toFloat scoreTarget))
+      speed = 1+3*(1.0-(toFloat game.score)/(toFloat game.mode.scoreTarget))
       player = movePlayer ((toFloat dx)*speed) game.player
   in
       { game | player = player }
@@ -195,15 +217,12 @@ type alias Player =
   , y: Float
   }
 
-defaultFemale : Player
-defaultFemale =
-  { sex = Female
-  , x = 165
+newPlayer : Sex -> Player
+newPlayer sex =
+  { sex = sex
+  , x = (gameWidth/2)-35
   , y = 10
   }
-
-defaultMale : Player
-defaultMale = { defaultFemale | sex = Male }
 
 type alias Game = 
   { player: Player
@@ -217,11 +236,12 @@ type alias Game =
   , startedAt: Time
   , timeProgress: Float
   , space: Bool
+  , mode: Mode
   }
 
 defaultGame : Game
 defaultGame =
-  { player = defaultMale
+  { player = newPlayer Male
   , melatonins = []
   , score = 0
   , scene = SelectionScreen
@@ -232,8 +252,26 @@ defaultGame =
   , startedAt = 0
   , timeProgress = 0
   , space = False
+  , mode = baseMode
   }
-  
+
+
+startGame : Time -> Game -> Game
+startGame t game =
+  { game
+  | scene = PlayScreen
+  , startedAt = t
+  , dropLightSourceAt = t+game.mode.startLightSourcesAt*game.mode.gameDuration
+  }
+
+resetGame : Game -> Game
+resetGame game =
+  { game
+  | score = 0
+  , scene = SelectionScreen
+  , timeProgress = 0
+  , melatonins = []
+  }
 
 -- VIEW
 
@@ -288,14 +326,19 @@ colorToString color =
 -- Final screens
 
 centeredText : Int -> String -> Svg
-centeredText y str = text'
-  [ SVGA.y (toString y) 
-  , SVGA.x "200"
-  , SVGA.fill "white"
-  , SVGA.textAnchor "middle"
-  , SVGA.stroke "black"
-  , SVGA.strokeWidth "0.3pt"
-  ] [ text str ]
+centeredText y str = centeredTextWithOptions y [] str
+
+centeredTextWithOptions : Int -> List Attribute -> String -> Svg
+centeredTextWithOptions y attrs str = text' (List.concat
+  [ [ SVGA.y (toString y) 
+    , SVGA.x "200"
+    , SVGA.fill "white"
+    , SVGA.textAnchor "middle"
+    , SVGA.stroke "black"
+    , SVGA.strokeWidth "0.3pt"
+    ]
+  , attrs ])
+  [ text str ]
 
 renderSuccess : Game -> List Svg
 renderSuccess game =
@@ -316,10 +359,12 @@ renderInformation game =
   , ( image
     [ SVGA.x "50"
     , SVGA.y "75"
-    , SVGA.width "300"
-    , SVGA.height "150"
+    , SVGA.width "250"
+    , SVGA.height "125"
     , SVGA.xlinkHref "tutorial.svg"
     ] [])
+  , renderObjectScaled 2.0 <| Melatonin (330,100)
+  , renderObjectScaled 1.8 <| LightSource (330,170)
   ]
       
 -- Selection Scene
@@ -334,6 +379,12 @@ renderSelection game =
 
   in
     [ renderSelectionBG
+    , ( centeredTextWithOptions 30 
+        [ SVGA.fontSize "1.5em"
+        ]
+        "Melato...ZzZz"
+      )
+    , centeredText 230 "Pressione <espaço> para começar"
     , renderCharacter male
     , renderCharacter female
     , renderSelectionRect selectedX
@@ -353,15 +404,16 @@ renderSelectionRect x = rect
 -- Play Scene
 renderPlay : Game -> List Svg
 renderPlay game = List.concat
-  [ [ renderPlayBG game.timeProgress
-    , renderFloor
-    ]
+  [ [ renderPlayBG game.timeProgress ]
+  , renderMountains
+  , [ renderFloor ]
   , renderPlayer game.player
   , List.map renderObject game.melatonins
-  , [ renderScore game.score
+  , [ renderScore game.score game.mode.scoreTarget
     , renderTime game.timeProgress
     , rect [SVGA.x "-1000", SVGA.y "-1000", SVGA.width "1000", SVGA.height "3000", SVGA.fill "white"] []
     , rect [SVGA.x (toString gameWidth), SVGA.y "-1000", SVGA.width "1000", SVGA.height "3000", SVGA.fill "white"] []
+    , rect [SVGA.x "-1000", SVGA.y (toString gameHeight), SVGA.width "5000", SVGA.height "1000", SVGA.fill "white"] []
     ]
   ]
 
@@ -377,11 +429,18 @@ renderFloor = rect
   , SVGA.y "280"
   , SVGA.height "20"
   , SVGA.width "400"
-  , SVGA.fill "green"
+  , SVGA.fill "saddlebrown"
   ] []
 
-renderScore : Int -> Svg
-renderScore score = renderBar 10 Color.purple ((toFloat score)/scoreTarget)
+renderMountains : List Svg
+renderMountains =
+  [ circle [ SVGA.cx "47", SVGA.cy "275", SVGA.r "70", SVGA.fill "green" ] []
+  , circle [ SVGA.cx "290", SVGA.cy "380", SVGA.r "200", SVGA.fill "green" ] []
+  , circle [ SVGA.cx "145", SVGA.cy "270", SVGA.r "90", SVGA.fill "green" ] []
+  ]
+
+renderScore : Int -> Int -> Svg
+renderScore score scoreTarget = renderBar 10 Color.purple ((toFloat score)/(toFloat scoreTarget))
 
 renderTime : Float -> Svg
 renderTime progress = renderBar 25 Color.blue progress
@@ -422,7 +481,6 @@ renderPlayBG progress =
       nightColor = hsl (degrees 233) 0.95 0.1
       color = combineColor progress nightColor dayColor 
   in
-    --text' [SVGA.y "100"] [ text colorStr ]
     rect (bgAttrs
       [ SVGA.fill (colorToString color)
       ]) []
@@ -432,25 +490,23 @@ renderSelectionBG = image (bgAttrs
   [ SVGA.xlinkHref "./fundo.jpg"
   ]) []
 
-renderObject : Object -> Svg
-renderObject object = 
+renderObjectScaled : Float -> Object -> Svg
+renderObjectScaled scale object =
   let
-      renderCircle x y c str = g []
-        [ circle
-          [ SVGA.cx (toString x)
-          , SVGA.cy (toString y)
-          , SVGA.r  (toString melatoninRadius)
-          , SVGA.fill c
-          ] [] 
-        , text'
-          [ SVGA.x (toString (x-5))
-          , SVGA.y (toString (y+5))
-          ] [ text str ]
-        ]
+      renderImg x y sprite = image
+        [ SVGA.xlinkHref sprite
+        , SVGA.width (toString (24*scale))
+        , SVGA.height (toString (24*scale))
+        , SVGA.x (toString (x-12*scale))
+        , SVGA.y (toString (y-12*scale))
+        ] []
   in
       case object of
-        Melatonin (x,y) -> renderCircle x y "#8533C4" "Z"
-        LightSource (x,y) -> renderCircle x y "red" "L"
+        Melatonin (x,y) -> renderImg x y "molecule.svg"
+        LightSource (x,y) -> renderImg x y "owl-notebook.svg"
+
+renderObject : Object -> Svg
+renderObject object = renderObjectScaled 1 object
 
 renderCharacter : Player -> Svg
 renderCharacter player = 
