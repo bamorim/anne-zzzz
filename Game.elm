@@ -31,13 +31,13 @@ type alias Mode =
 
 baseMode : Mode
 baseMode =
-  { melatoninDelay = 1.5*second
+  { melatoninDelay = 1.3*second
   , lightSourceDelay = 2*second
   , gameDuration = 2*minute
   , scoreTarget = 100
   , melatoninScore = 1
   , lightSourceScore = -3
-  , startLightSourcesAt = 0.3
+  , startLightSourcesAt = 0.4
   }
 
 main = 
@@ -68,35 +68,35 @@ updateGame (t,input) game =
       spacePressed = ( (not game.space) && input.space )
       nextGame = case game.scene of
         PlayScreen -> updatePlay t input game
-        SelectionScreen -> updateSelection t input game
+        SelectionScreen -> updateSelection input game
         InformationScreen -> if spacePressed then startGame t game else game
         _ -> if spacePressed then resetGame game else game
   in { nextGame | space = input.space }
 
 updatePlay : Time -> Input -> Game -> Game
 updatePlay t input game = game
+  |> updateClock t
   |> updatePlayer input.x
   |> updateMelatonins
-  |> dropMelatonins t
-  |> dropLightSources t
+  |> dropMelatonins
+  |> dropLightSources
   |> captureMelatonins
-  |> updateClock t
   |> finishIfEnded
 
 finishIfEnded : Game -> Game
 finishIfEnded game = 
   if game.score >= game.mode.scoreTarget then
     { game | scene = SuccessScreen, space = False }
-  else if game.timeProgress >= 1 then
+  else if timeProgress game >= 1 then
     { game | scene = FailureScreen, space = False }
   else
     game
 
 updateClock : Time -> Game -> Game
-updateClock t game = { game | timeProgress = (t-game.startedAt)/game.mode.gameDuration }
+updateClock t game = { game | time = (t-game.startedAt) }
 
-updateSelection : Time -> Input -> Game -> Game
-updateSelection time input game =
+updateSelection : Input -> Game -> Game
+updateSelection input game =
   if (not game.space) && input.space then
     { game | scene = InformationScreen }
   else
@@ -117,28 +117,28 @@ movePlayer dx player =
       else 
         { player | x = newX }
 
-dropMelatonins : Time -> Game -> Game
-dropMelatonins t game =
-  if (t-game.dropMelatoninAt) >= 0 then
+dropMelatonins : Game -> Game
+dropMelatonins game =
+  if (game.time-game.dropMelatoninAt) >= 0 then
     case Random.generate objectDropGenerator game.melatoninSeed of
       (nextX,nextSeed) ->
         { game
         | melatoninSeed = nextSeed
-        , melatonins = (Melatonin (nextX,0)) :: game.melatonins
-        , dropMelatoninAt = t+game.mode.melatoninDelay*(1-game.timeProgress)
+        , melatonins = (Melatonin (nextX,50)) :: game.melatonins
+        , dropMelatoninAt = game.time+game.mode.melatoninDelay*(1.05-(timeProgress game))
         }
   else game
 
 
-dropLightSources : Time -> Game -> Game
-dropLightSources t game =
-  if (t-game.dropLightSourceAt) >= 0 then
+dropLightSources : Game -> Game
+dropLightSources game =
+  if (game.time-game.dropLightSourceAt) >= 0 then
     case Random.generate objectDropGenerator game.lightSourceSeed of
       (nextX,nextSeed) ->
         { game
         | lightSourceSeed = nextSeed
-        , melatonins = (LightSource (nextX,0)) :: game.melatonins
-        , dropLightSourceAt = t+game.mode.lightSourceDelay*(1-game.timeProgress)
+        , melatonins = (LightSource (nextX,50)) :: game.melatonins
+        , dropLightSourceAt = game.time+game.mode.lightSourceDelay*(1.05-(timeProgress game))
         }
   else game
 
@@ -183,8 +183,8 @@ captureMelatonins game =
       isColliding = objectPosition >> (isCollidingWith game.player)
       isNotColliding = not << isColliding
       scoreForObject object = case object of
-        LightSource _ -> -3
-        Melatonin   _ -> 1
+        LightSource _ -> game.mode.lightSourceScore
+        Melatonin   _ -> game.mode.melatoninScore
 
       scored = game.melatonins
         |> List.filter isColliding
@@ -234,10 +234,13 @@ type alias Game =
   , lightSourceSeed: Random.Seed
   , dropLightSourceAt: Time
   , startedAt: Time
-  , timeProgress: Float
+  , time: Time
   , space: Bool
   , mode: Mode
   }
+
+timeProgress : Game -> Float
+timeProgress game = game.time/game.mode.gameDuration
 
 defaultGame : Game
 defaultGame =
@@ -250,7 +253,7 @@ defaultGame =
   , lightSourceSeed = Random.initialSeed 5678
   , dropLightSourceAt = 0
   , startedAt = 0
-  , timeProgress = 0
+  , time = 0
   , space = False
   , mode = baseMode
   }
@@ -261,7 +264,7 @@ startGame t game =
   { game
   | scene = PlayScreen
   , startedAt = t
-  , dropLightSourceAt = t+game.mode.startLightSourcesAt*game.mode.gameDuration
+  , dropLightSourceAt = game.mode.startLightSourcesAt*game.mode.gameDuration
   }
 
 resetGame : Game -> Game
@@ -269,7 +272,7 @@ resetGame game =
   { game
   | score = 0
   , scene = SelectionScreen
-  , timeProgress = 0
+  , time = 0
   , melatonins = []
   }
 
@@ -342,7 +345,7 @@ centeredTextWithOptions y attrs str = text' (List.concat
 
 renderSuccess : Game -> List Svg
 renderSuccess game =
-  [ renderPlayBG game.timeProgress
+  [ renderPlayBG <| timeProgress game
   , centeredText 120 "Você ganhou!"
   , centeredText 160 "Seu ciclo dia/noite está regulado."
   , centeredText 180 "Continue assim. :D"
@@ -350,7 +353,7 @@ renderSuccess game =
 
 renderFailure : Game -> List Svg
 renderFailure game =
-  [ renderPlayBG game.timeProgress
+  [ renderPlayBG <| timeProgress game
   , centeredText 90 "Que Pena."
   , centeredText 120 "Seu ciclo dia/noite está alterado, preste atenção nisso!"
   , centeredText 150 "Você sabia que essa alteração pode ocasionar insônia,"
@@ -360,7 +363,7 @@ renderFailure game =
 
 renderInformation : Game -> List Svg
 renderInformation game =
-  [ renderPlayBG game.timeProgress
+  [ renderPlayBG <| timeProgress game
   , ( image
     [ SVGA.x "50"
     , SVGA.y "75"
@@ -406,16 +409,18 @@ renderSelectionRect x = rect
   , SVGA.fill "transparent"
   ]
   []
+
 -- Play Scene
 renderPlay : Game -> List Svg
 renderPlay game = List.concat
-  [ [ renderPlayBG game.timeProgress ]
+  [ [ renderPlayBG <| timeProgress game ]
   , renderMountains
   , [ renderFloor ]
   , renderPlayer game.player
   , List.map renderObject game.melatonins
+  , renderBrains game
   , [ renderScore game.score game.mode.scoreTarget
-    , renderTime game.timeProgress
+    , renderTime <| timeProgress game
     , rect [SVGA.x "-1000", SVGA.y "-1000", SVGA.width "1000", SVGA.height "3000", SVGA.fill "white"] []
     , rect [SVGA.x (toString gameWidth), SVGA.y "-1000", SVGA.width "1000", SVGA.height "3000", SVGA.fill "white"] []
     , rect [SVGA.x "-1000", SVGA.y (toString gameHeight), SVGA.width "5000", SVGA.height "1000", SVGA.fill "white"] []
@@ -427,6 +432,32 @@ renderPlayer player =
   [ renderCharacter { player | x = player.x-gameWidth }
   , renderCharacter player
   ]
+
+renderBrains : Game -> List Svg
+renderBrains game =
+  let
+      yVar = game.time
+        |> (\x -> x/50)
+        |> round
+        |> (\x -> x % 10)
+        |> (\x -> x-5)
+        |> abs
+
+      renderBrain x y = image
+        [ SVGA.width "46"
+        , SVGA.height "34"
+        , SVGA.x <| toString <| x + yVar
+        , SVGA.y <| toString <| y
+        , SVGA.xlinkHref "brain.png"
+        ] []
+  in
+      [ renderBrain 16 40
+      , renderBrain 73 50
+      , renderBrain 136 37
+      , renderBrain 199 42 
+      , renderBrain 260 53 
+      , renderBrain 328 43 
+      ]
 
 renderFloor : Svg
 renderFloor = rect

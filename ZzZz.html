@@ -11340,6 +11340,21 @@ Elm.ZzZz.make = function (_elm) {
    var renderFloor = A2($Svg.rect,
    _U.list([$Svg$Attributes.x("0"),$Svg$Attributes.y("280"),$Svg$Attributes.height("20"),$Svg$Attributes.width("400"),$Svg$Attributes.fill("saddlebrown")]),
    _U.list([]));
+   var renderBrains = function (game) {
+      var yVar = $Basics.abs(function (x) {
+         return x - 5;
+      }(function (x) {    return A2($Basics._op["%"],x,10);}($Basics.round(function (x) {    return x / 50;}(game.time)))));
+      var renderBrain = F2(function (x,y) {
+         return A2($Svg.image,
+         _U.list([$Svg$Attributes.width("46")
+                 ,$Svg$Attributes.height("34")
+                 ,$Svg$Attributes.x($Basics.toString(x + yVar))
+                 ,$Svg$Attributes.y($Basics.toString(y))
+                 ,$Svg$Attributes.xlinkHref("brain.png")]),
+         _U.list([]));
+      });
+      return _U.list([A2(renderBrain,16,40),A2(renderBrain,73,50),A2(renderBrain,136,37),A2(renderBrain,199,42),A2(renderBrain,260,53),A2(renderBrain,328,43)]);
+   };
    var renderSelectionRect = function (x) {
       return A2($Svg.rect,
       _U.list([$Svg$Attributes.x($Basics.toString(x))
@@ -11396,6 +11411,7 @@ Elm.ZzZz.make = function (_elm) {
       return A4(renderBar,"Melatonina",10,$Color.purple,$Basics.toFloat(score) / $Basics.toFloat(scoreTarget));
    });
    var renderTime = function (progress) {    return A4(renderBar,"Tempo",25,$Color.blue,progress);};
+   var timeProgress = function (game) {    return game.time / game.mode.gameDuration;};
    var Game = function (a) {
       return function (b) {
          return function (c) {
@@ -11417,7 +11433,7 @@ Elm.ZzZz.make = function (_elm) {
                                               ,lightSourceSeed: g
                                               ,dropLightSourceAt: h
                                               ,startedAt: i
-                                              ,timeProgress: j
+                                              ,time: j
                                               ,space: k
                                               ,mode: l};
                                     };
@@ -11439,30 +11455,30 @@ Elm.ZzZz.make = function (_elm) {
    var SuccessScreen = {ctor: "SuccessScreen"};
    var PlayScreen = {ctor: "PlayScreen"};
    var startGame = F2(function (t,game) {
-      return _U.update(game,{scene: PlayScreen,startedAt: t,dropLightSourceAt: t + game.mode.startLightSourcesAt * game.mode.gameDuration});
+      return _U.update(game,{scene: PlayScreen,startedAt: t,dropLightSourceAt: game.mode.startLightSourcesAt * game.mode.gameDuration});
    });
    var SelectionScreen = {ctor: "SelectionScreen"};
-   var resetGame = function (game) {    return _U.update(game,{score: 0,scene: SelectionScreen,timeProgress: 0,melatonins: _U.list([])});};
+   var resetGame = function (game) {    return _U.update(game,{score: 0,scene: SelectionScreen,time: 0,melatonins: _U.list([])});};
    var LightSource = function (a) {    return {ctor: "LightSource",_0: a};};
    var Melatonin = function (a) {    return {ctor: "Melatonin",_0: a};};
    var Female = {ctor: "Female"};
    var Male = {ctor: "Male"};
-   var updateClock = F2(function (t,game) {    return _U.update(game,{timeProgress: (t - game.startedAt) / game.mode.gameDuration});});
+   var updateClock = F2(function (t,game) {    return _U.update(game,{time: t - game.startedAt});});
    var finishIfEnded = function (game) {
-      return _U.cmp(game.score,game.mode.scoreTarget) > -1 ? _U.update(game,{scene: SuccessScreen,space: false}) : _U.cmp(game.timeProgress,
+      return _U.cmp(game.score,game.mode.scoreTarget) > -1 ? _U.update(game,{scene: SuccessScreen,space: false}) : _U.cmp(timeProgress(game),
       1) > -1 ? _U.update(game,{scene: FailureScreen,space: false}) : game;
    };
    var Input = F2(function (a,b) {    return {x: a,space: b};});
    var input = $Time.timestamp(A2($Signal.sampleOn,
    $Time.fps(60),
    A3($Signal.map2,Input,A2($Signal.map,function (_) {    return _.x;},$Keyboard.arrows),$Keyboard.space)));
-   var baseMode = {melatoninDelay: 1.5 * $Time.second
+   var baseMode = {melatoninDelay: 1.3 * $Time.second
                   ,lightSourceDelay: 2 * $Time.second
                   ,gameDuration: 2 * $Time.minute
                   ,scoreTarget: 100
                   ,melatoninScore: 1
                   ,lightSourceScore: -3
-                  ,startLightSourcesAt: 0.3};
+                  ,startLightSourcesAt: 0.4};
    var Mode = F7(function (a,b,c,d,e,f,g) {
       return {startLightSourcesAt: a,lightSourceDelay: b,melatoninDelay: c,gameDuration: d,melatoninScore: e,lightSourceScore: f,scoreTarget: g};
    });
@@ -11493,24 +11509,24 @@ Elm.ZzZz.make = function (_elm) {
    };
    var gameWidth = 400;
    var objectDropGenerator = A2($Random.$int,melatoninRadius,gameWidth - melatoninRadius);
-   var dropMelatonins = F2(function (t,game) {
-      if (_U.cmp(t - game.dropMelatoninAt,0) > -1) {
+   var dropMelatonins = function (game) {
+      if (_U.cmp(game.time - game.dropMelatoninAt,0) > -1) {
             var _p7 = A2($Random.generate,objectDropGenerator,game.melatoninSeed);
             return _U.update(game,
             {melatoninSeed: _p7._1
-            ,melatonins: A2($List._op["::"],Melatonin({ctor: "_Tuple2",_0: _p7._0,_1: 0}),game.melatonins)
-            ,dropMelatoninAt: t + game.mode.melatoninDelay * (1 - game.timeProgress)});
+            ,melatonins: A2($List._op["::"],Melatonin({ctor: "_Tuple2",_0: _p7._0,_1: 50}),game.melatonins)
+            ,dropMelatoninAt: game.time + game.mode.melatoninDelay * (1.05 - timeProgress(game))});
          } else return game;
-   });
-   var dropLightSources = F2(function (t,game) {
-      if (_U.cmp(t - game.dropLightSourceAt,0) > -1) {
+   };
+   var dropLightSources = function (game) {
+      if (_U.cmp(game.time - game.dropLightSourceAt,0) > -1) {
             var _p8 = A2($Random.generate,objectDropGenerator,game.lightSourceSeed);
             return _U.update(game,
             {lightSourceSeed: _p8._1
-            ,melatonins: A2($List._op["::"],LightSource({ctor: "_Tuple2",_0: _p8._0,_1: 0}),game.melatonins)
-            ,dropLightSourceAt: t + game.mode.lightSourceDelay * (1 - game.timeProgress)});
+            ,melatonins: A2($List._op["::"],LightSource({ctor: "_Tuple2",_0: _p8._0,_1: 50}),game.melatonins)
+            ,dropLightSourceAt: game.time + game.mode.lightSourceDelay * (1.05 - timeProgress(game))});
          } else return game;
-   });
+   };
    var movePlayer = F2(function (dx,player) {
       var newX = player.x + dx;
       return _U.cmp(newX,gameWidth) > 0 ? _U.update(player,{x: newX - gameWidth}) : _U.cmp(newX,0) < 0 ? _U.update(player,
@@ -11528,7 +11544,14 @@ Elm.ZzZz.make = function (_elm) {
       return _U.cmp(_p10._1,225) < 0 ? false : A2(checkX,player.x,_p11) || A2(checkX,player.x - gameWidth,_p11) ? true : false;
    });
    var captureMelatonins = function (game) {
-      var scoreForObject = function (object) {    var _p12 = object;if (_p12.ctor === "LightSource") {    return -3;} else {    return 1;}};
+      var scoreForObject = function (object) {
+         var _p12 = object;
+         if (_p12.ctor === "LightSource") {
+               return game.mode.lightSourceScore;
+            } else {
+               return game.mode.melatoninScore;
+            }
+      };
       var isColliding = function (_p13) {    return A2(isCollidingWith,game.player,objectPosition(_p13));};
       var isNotColliding = function (_p14) {    return $Basics.not(isColliding(_p14));};
       var newMelatonins = A2($List.filter,isNotColliding,game.melatonins);
@@ -11538,10 +11561,10 @@ Elm.ZzZz.make = function (_elm) {
       return _U.update(game,{melatonins: newMelatonins,score: newScore});
    };
    var updatePlay = F3(function (t,input,game) {
-      return finishIfEnded(A2(updateClock,t,captureMelatonins(A2(dropLightSources,t,A2(dropMelatonins,t,updateMelatonins(A2(updatePlayer,input.x,game)))))));
+      return finishIfEnded(captureMelatonins(dropLightSources(dropMelatonins(updateMelatonins(A2(updatePlayer,input.x,A2(updateClock,t,game)))))));
    });
    var newPlayer = function (sex) {    return {sex: sex,x: gameWidth / 2 - 35,y: 10};};
-   var updateSelection = F3(function (time,input,game) {
+   var updateSelection = F2(function (input,game) {
       if ($Basics.not(game.space) && input.space) return _U.update(game,{scene: InformationScreen}); else {
             var _p15 = input.x;
             switch (_p15)
@@ -11559,7 +11582,7 @@ Elm.ZzZz.make = function (_elm) {
          var _p18 = game.scene;
          switch (_p18.ctor)
          {case "PlayScreen": return A3(updatePlay,_p20,_p19,game);
-            case "SelectionScreen": return A3(updateSelection,_p20,_p19,game);
+            case "SelectionScreen": return A2(updateSelection,_p19,game);
             case "InformationScreen": return spacePressed ? A2(startGame,_p20,game) : game;
             default: return spacePressed ? resetGame(game) : game;}
       }();
@@ -11574,7 +11597,7 @@ Elm.ZzZz.make = function (_elm) {
                      ,lightSourceSeed: $Random.initialSeed(5678)
                      ,dropLightSourceAt: 0
                      ,startedAt: 0
-                     ,timeProgress: 0
+                     ,time: 0
                      ,space: false
                      ,mode: baseMode};
    var game = A3($Signal.foldp,updateGame,defaultGame,input);
@@ -11592,13 +11615,13 @@ Elm.ZzZz.make = function (_elm) {
       return A2($Svg.rect,bgAttrs(_U.list([$Svg$Attributes.fill(colorToString(color))])),_U.list([]));
    };
    var renderSuccess = function (game) {
-      return _U.list([renderPlayBG(game.timeProgress)
+      return _U.list([renderPlayBG(timeProgress(game))
                      ,A2(centeredText,120,"Você ganhou!")
                      ,A2(centeredText,160,"Seu ciclo dia/noite está regulado.")
                      ,A2(centeredText,180,"Continue assim. :D")]);
    };
    var renderFailure = function (game) {
-      return _U.list([renderPlayBG(game.timeProgress)
+      return _U.list([renderPlayBG(timeProgress(game))
                      ,A2(centeredText,90,"Que Pena.")
                      ,A2(centeredText,120,"Seu ciclo dia/noite está alterado, preste atenção nisso!")
                      ,A2(centeredText,150,"Você sabia que essa alteração pode ocasionar insônia,")
@@ -11606,7 +11629,7 @@ Elm.ZzZz.make = function (_elm) {
                      ,A2(centeredText,200,"Melhor evitar excesso de fontes de luz à noite.")]);
    };
    var renderInformation = function (game) {
-      return _U.list([renderPlayBG(game.timeProgress)
+      return _U.list([renderPlayBG(timeProgress(game))
                      ,A2($Svg.image,
                      _U.list([$Svg$Attributes.x("50")
                              ,$Svg$Attributes.y("75")
@@ -11631,13 +11654,14 @@ Elm.ZzZz.make = function (_elm) {
    };
    var renderPlayer = function (player) {    return _U.list([renderCharacter(_U.update(player,{x: player.x - gameWidth})),renderCharacter(player)]);};
    var renderPlay = function (game) {
-      return $List.concat(_U.list([_U.list([renderPlayBG(game.timeProgress)])
+      return $List.concat(_U.list([_U.list([renderPlayBG(timeProgress(game))])
                                   ,renderMountains
                                   ,_U.list([renderFloor])
                                   ,renderPlayer(game.player)
                                   ,A2($List.map,renderObject,game.melatonins)
+                                  ,renderBrains(game)
                                   ,_U.list([A2(renderScore,game.score,game.mode.scoreTarget)
-                                           ,renderTime(game.timeProgress)
+                                           ,renderTime(timeProgress(game))
                                            ,A2($Svg.rect,
                                            _U.list([$Svg$Attributes.x("-1000")
                                                    ,$Svg$Attributes.y("-1000")
@@ -11717,6 +11741,7 @@ Elm.ZzZz.make = function (_elm) {
                              ,Player: Player
                              ,newPlayer: newPlayer
                              ,Game: Game
+                             ,timeProgress: timeProgress
                              ,defaultGame: defaultGame
                              ,startGame: startGame
                              ,resetGame: resetGame
@@ -11732,6 +11757,7 @@ Elm.ZzZz.make = function (_elm) {
                              ,renderSelectionRect: renderSelectionRect
                              ,renderPlay: renderPlay
                              ,renderPlayer: renderPlayer
+                             ,renderBrains: renderBrains
                              ,renderFloor: renderFloor
                              ,renderMountains: renderMountains
                              ,renderScore: renderScore
