@@ -343,14 +343,19 @@ centeredTextWithOptions y attrs str = text' (List.concat
 renderSuccess : Game -> List Svg
 renderSuccess game =
   [ renderPlayBG game.timeProgress
-  , centeredText 150 "Parabéns, Você ganhou!"
+  , centeredText 120 "Você ganhou!"
+  , centeredText 160 "Seu ciclo dia/noite está regulado."
+  , centeredText 180 "Continue assim. :D"
   ]
 
 renderFailure : Game -> List Svg
 renderFailure game =
   [ renderPlayBG game.timeProgress
-  , centeredText 130 "Que Pena."
-  , centeredText 170 "Na próxima evite fontes luminosas a noite..."
+  , centeredText 90 "Que Pena."
+  , centeredText 120 "Seu ciclo dia/noite está alterado, preste atenção nisso!"
+  , centeredText 150 "Você sabia que essa alteração pode ocasionar insônia,"
+  , centeredText 165 "obesidade, depressão e até mesmo câncer?"
+  , centeredText 200 "Melhor evitar excesso de fontes de luz à noite."
   ]
 
 renderInformation : Game -> List Svg

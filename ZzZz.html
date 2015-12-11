@@ -11582,9 +11582,19 @@ Elm.ZzZz.make = function (_elm) {
       var color = A3(combineColor,progress,nightColor,dayColor);
       return A2($Svg.rect,bgAttrs(_U.list([$Svg$Attributes.fill(colorToString(color))])),_U.list([]));
    };
-   var renderSuccess = function (game) {    return _U.list([renderPlayBG(game.timeProgress),A2(centeredText,150,"Parabéns, Você ganhou!")]);};
+   var renderSuccess = function (game) {
+      return _U.list([renderPlayBG(game.timeProgress)
+                     ,A2(centeredText,120,"Você ganhou!")
+                     ,A2(centeredText,160,"Seu ciclo dia/noite está regulado.")
+                     ,A2(centeredText,180,"Continue assim. :D")]);
+   };
    var renderFailure = function (game) {
-      return _U.list([renderPlayBG(game.timeProgress),A2(centeredText,130,"Que Pena."),A2(centeredText,170,"Na próxima evite fontes luminosas a noite...")]);
+      return _U.list([renderPlayBG(game.timeProgress)
+                     ,A2(centeredText,90,"Que Pena.")
+                     ,A2(centeredText,120,"Seu ciclo dia/noite está alterado, preste atenção nisso!")
+                     ,A2(centeredText,150,"Você sabia que essa alteração pode ocasionar insônia,")
+                     ,A2(centeredText,165,"obesidade, depressão e até mesmo câncer?")
+                     ,A2(centeredText,200,"Melhor evitar excesso de fontes de luz à noite.")]);
    };
    var renderInformation = function (game) {
       return _U.list([renderPlayBG(game.timeProgress)
