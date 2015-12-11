@@ -11367,7 +11367,7 @@ Elm.ZzZz.make = function (_elm) {
       var c = $Color.toRgb(color);
       return $String.concat(_U.list(["rgb(",$Basics.toString(c.red),",",$Basics.toString(c.green),",",$Basics.toString(c.blue),")"]));
    };
-   var renderBar = F3(function (y,c,p) {
+   var renderBar = F4(function (str,y,c,p) {
       return A2($Svg.g,
       _U.list([]),
       _U.list([A2($Svg.rect,
@@ -11383,10 +11383,19 @@ Elm.ZzZz.make = function (_elm) {
                       ,$Svg$Attributes.height("10")
                       ,$Svg$Attributes.width($Basics.toString(380 * p))
                       ,$Svg$Attributes.fill(colorToString(c))]),
-              _U.list([]))]));
+              _U.list([]))
+              ,A2($Svg.text$,
+              _U.list([$Svg$Attributes.x("15")
+                      ,$Svg$Attributes.y($Basics.toString(y))
+                      ,$Svg$Attributes.alignmentBaseline("text-before-edge")
+                      ,$Svg$Attributes.fontSize("6pt")
+                      ,$Svg$Attributes.fill("white")]),
+              _U.list([$Svg.text(str)]))]));
    });
-   var renderScore = F2(function (score,scoreTarget) {    return A3(renderBar,10,$Color.purple,$Basics.toFloat(score) / $Basics.toFloat(scoreTarget));});
-   var renderTime = function (progress) {    return A3(renderBar,25,$Color.blue,progress);};
+   var renderScore = F2(function (score,scoreTarget) {
+      return A4(renderBar,"Melatonina",10,$Color.purple,$Basics.toFloat(score) / $Basics.toFloat(scoreTarget));
+   });
+   var renderTime = function (progress) {    return A4(renderBar,"Tempo",25,$Color.blue,progress);};
    var Game = function (a) {
       return function (b) {
          return function (c) {

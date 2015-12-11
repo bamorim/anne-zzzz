@@ -445,13 +445,13 @@ renderMountains =
   ]
 
 renderScore : Int -> Int -> Svg
-renderScore score scoreTarget = renderBar 10 Color.purple ((toFloat score)/(toFloat scoreTarget))
+renderScore score scoreTarget = renderBar "Melatonina" 10 Color.purple ((toFloat score)/(toFloat scoreTarget))
 
 renderTime : Float -> Svg
-renderTime progress = renderBar 25 Color.blue progress
+renderTime progress = renderBar "Tempo" 25 Color.blue progress
 
-renderBar : Int -> Color -> Float -> Svg
-renderBar y c p = g []
+renderBar : String -> Int -> Color -> Float -> Svg
+renderBar str y c p = g []
   [ rect
     [ SVGA.x "10"
     , SVGA.y (toString y)
@@ -466,6 +466,13 @@ renderBar y c p = g []
     , SVGA.width (toString (380*p))
     , SVGA.fill (colorToString c)
     ][]
+  , text'
+    [ SVGA.x "15"
+    , SVGA.y (toString y)
+    , SVGA.alignmentBaseline "text-before-edge"
+    , SVGA.fontSize "6pt"
+    , SVGA.fill "white"
+    ] [ text str ]
   ]
 
 combineColor : Float -> Color -> Color -> Color
